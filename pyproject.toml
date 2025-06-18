@@ -1,0 +1,86 @@
+[project]
+name = "datn-recsys"
+version = "0.1.0"
+description = "Product-ready Recommender System pipeline"
+readme = "README.md"
+package-mode = true
+
+authors = [
+    {name = "Thai Duong Nguyen", email = "nthaiduong83@gmail.com"},
+]
+requires-python = "==3.11.9"
+dependencies = [
+    "pandas==2.1.4",
+    "loguru<1.0.0,>=0.7.2",
+    "python-dotenv<2.0.0,>=1.0.1",
+    "datasets<3.0.0,>=2.21.0",
+    "pydantic<3.0.0,>=2.9.0",
+    "pytest<9.0.0,>=8.3.3",
+    "dill<1.0.0,>=0.3.8",
+    "redis<6.0.0,>=5.1.0",
+    "numpy==1.26.4",
+    "boto3<2.0.0,>=1.35.37",
+    "s3fs==2024.6.1",
+    "sqlalchemy<2.0",
+    "pyspark==3.5.5",
+    "qdrant-client==1.12.0",
+    "urllib3<2.0",
+    "onnxruntime==1.21.1",
+    "tritonclient[grpc]==2.41.1"
+]
+
+[dependency-groups]
+ml = [
+    "onnx==1.17.0",
+    "torch<3.0.0,>=2.4.1",
+    "scikit-learn<2.0.0,>=1.5.1",
+    "mlflow==2.16.2",
+    "evidently<1.0.0,>=0.4.37",
+    "ray[tune,train]==2.44.1",
+    "lightning==2.5.1",
+    "virtualenv==20.30.0",
+    "pyarrow==16.1.0",
+    "hyperopt==0.2.7",
+    "locust"
+]
+pipeline = [
+    "papermill<3.0.0,>=2.6.0",
+    "ipykernel==6.29.5",
+    "kfp==1.4.0",
+    "requests-toolbelt==0.10.1",
+    "kubernetes==11.0.0",
+    "sshtunnel"
+]
+features = [
+    "apache-airflow[postgres]==2.10.2",
+    "apache-airflow-providers-docker<4.0.0,>=3.14.0",
+    "psycopg2<3.0.0,>=2.9.9",
+    "feast[aws]==0.47.0",
+    "scikit-learn<2.0.0,>=1.5.1",
+]
+development = [
+    "black<25.0.0,>=24.8.0",
+    "isort<6.0.0,>=5.13.2",
+    "plotly<6.0.0,>=5.24.0",
+    "shap<1.0.0,>=0.46.0",
+    "jupyterlab<5.0.0,>=4.2.5",
+    "tensorboard<3.0.0,>=2.18.0",
+    "ipywidgets<9.0.0,>=8.1.5",
+    "ruff>=0.4.0",
+    "flake8<7.0.0,>=6.1.0",
+    "pytest<9.0.0,>=8.3.3",
+    "mypy<2.0.0,>=1.9.0",
+    "pre-commit<4.0.0,>=3.7.0",
+    "nbqa>=1.8.5",
+]
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = ["tests"]
