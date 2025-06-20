@@ -1,0 +1,26 @@
+name: PR Agent Review
+
+on:
+  pull_request:
+    branches: [main] # Hoặc thay main bằng nhánh bạn muốn
+    types: [opened, synchronize, reopened]
+
+jobs:
+  pr-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run PR Agent
+        uses: qodo-ai/pr-agent@v1.0.11
+        with:
+          provider: openai
+          openai_key: ${{ secrets.OPENAI_API_KEY }}
+          openai_model: gpt-4o
+          review: true
+          summarize: true
+          openai_temperature: 0.2
+          review_prompt: |
+            You are an expert code reviewer. Give a professional, production-quality review and highlight clean code, bugs, and improvements.
+          summary_prompt: |
+            Summarize this PR in a product-focused style, explain the impact and reasoning behind the changes.

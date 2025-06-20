@@ -1,0 +1,7 @@
+Rules = [
+  IsComplete "user_id",
+  IsComplete "event_timestamp",
+
+  ColumnValues "user_rating_cnt_90d" >= 0,
+  ColumnValues "user_rating_avg_prev_rating_90d" between 0.99 and 5.01
+]

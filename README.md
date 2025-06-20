@@ -26,5 +26,8 @@ make style
 # 7. Chạy unit test
 make test
 
-# 8. Mở JupyterLab (hoặc mở notebook trên VSCode)
-make notebook
+
+
+Vào Settings → Secrets and variables → Actions -> New repository secret
+Name: OPENAI_API_KEY
+Value: dán OpenAI API Key của bạn

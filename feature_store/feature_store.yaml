@@ -1,0 +1,35 @@
+project: feature_store_recsys
+
+registry:
+  registry_type: sql
+  path: postgresql+psycopg2://postgres:postgres@db-instance-feature-store.cdkwg6wyo7r8.ap-southeast-1.rds.amazonaws.com:5432/postgres
+
+provider: aws
+
+entity_key_serialization_version: 2
+
+offline_store:
+  type: spark
+  spark_conf:
+    spark.master: "local[*]"
+    spark.ui.enabled: "false"
+    spark.eventLog.enabled: "false"
+    spark.hadoop.fs.s3a.access.key: "AKIA3TD2SE4DQ2STIEDA"
+    spark.hadoop.fs.s3a.secret.key: "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"
+    spark.sql.catalogImplementation: "hive"
+    spark.sql.parser.quotedRegexColumnNames: "true"
+    spark.sql.session.timeZone: "UTC"
+    spark.sql.execution.arrow.fallback.enabled: "true"
+    spark.sql.execution.arrow.pyspark.enabled: "true"
+    spark.hadoop.fs.s3a.endpoint: "s3.amazonaws.com"
+    spark.hadoop.fs.s3a.impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    spark.hadoop.fs.s3a.path.style.access: "true"
+    spark.hadoop.fs.s3a.connection.ssl.enabled: "true"
+    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
+    spark.sql.parquet.mergeSchema: "true"
+    spark.sql.parquet.filterPushdown: "true"
+    spark.jars.packages: "org.apache.hadoop:hadoop-aws:3.3.4,org.apache.hadoop:hadoop-common:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.261"
+
+online_store:
+  type: dynamodb
+  region: ap-southeast-1
