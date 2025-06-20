@@ -27,7 +27,22 @@ make style
 make test
 
 
+Setup pr agent github (https://github.com/qodo-ai/pr-agent)
 
 Vào Settings → Secrets and variables → Actions -> New repository secret
 Name: OPENAI_API_KEY
 Value: dán OpenAI API Key của bạn
+
+Tạo label:  Issues → Labels
+Bấm New label
+
+    Name: pr-agent/review
+
+    Color: để mặc định hoặc chọn tuỳ ý
+
+    Description: “Trigger PR Agent review on this PR”
+
+Bấm Create label
+Gắn label: pr-agent/review khi tạo Pull Request
+
+![systempipline](images/setup/pr_agent.png)
