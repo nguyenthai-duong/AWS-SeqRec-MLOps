@@ -2,25 +2,44 @@ name: PR Agent Review
 
 on:
   pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened]
+    types: [opened, reopened, synchronize]
 
 jobs:
   pr-agent:
     runs-on: ubuntu-latest
+
+    # Cấp phép để action có thể viết comment lên PR
+    permissions:
+      pull-requests: write
+      issues: write
+      contents: read
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Run PR Agent
-        uses: qodo-ai/pr-agent@v0.29
-        with:
-          provider: openai
-          openai_key: ${{ secrets.OPENAI_API_KEY }}
-          openai_model: gpt-4o
-          review: true
-          summarize: true
-          openai_temperature: 0.2
-          review_prompt: |
-            You are an expert code reviewer. Give a professional, production-quality review and highlight clean code, bugs, and improvements.
-          summary_prompt: |
-            Summarize this PR in a product-focused style, explain the impact and reasoning behind the changes.
+        uses: qodo-ai/pr-agent@v0.29             # pin vào v0.29, không dùng inputs lạ
+        env:
+          # OpenAI key (bí mật)
+          OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+          # GitHub token để comment lên PR
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          # Chỉ chạy review tự động, tắt describe/improve nếu không cần
+          GITHUB_ACTION_CONFIG_AUTO_REVIEW: "true"      # bật review :contentReference[oaicite:0]{index=0}
+          GITHUB_ACTION_CONFIG_AUTO_DESCRIBE: "false"
+          GITHUB_ACTION_CONFIG_AUTO_IMPROVE: "false"
+
+          # Tùy chỉnh model & temperature
+          OPENAI_MODEL: "gpt-4o"
+          OPENAI_TEMPERATURE: "0.2"
+
+          # (Tuỳ chọn) prompts
+          PR_REVIEWER_EXTRA_INSTRUCTIONS: |
+            You are an expert code reviewer. Give a professional,
+            production-quality review, highlight clean code,
+            bugs, and improvements.
+          PR_SUMMARY_EXTRA_INSTRUCTIONS: |
+            Summarize this PR in a product-focused style,
+            explain the impact and reasoning behind the changes.
