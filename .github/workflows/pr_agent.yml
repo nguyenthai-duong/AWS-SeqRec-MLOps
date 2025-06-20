@@ -28,6 +28,6 @@ jobs:
           OPENAI_TEMPERATURE: "0.2"
           PR_REVIEWER_RUN_ON_EVERY_COMMIT: "true"
           PR_REVIEWER_EXTRA_INSTRUCTIONS: |
-            You are an expert code reviewer. Give a professional, production-quality review, highlight clean code, bugs, and improvements.
+            You are an expert code reviewer. Be concise and focus strictly on core issues. Avoid redundancy.
           PR_SUMMARY_EXTRA_INSTRUCTIONS: |
-            Summarize this PR in a product-focused style, explain the impact and reasoning behind the changes.
+            Write a brief, focused summary. Only highlight key changes.
