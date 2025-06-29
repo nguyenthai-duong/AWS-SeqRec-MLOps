@@ -61,10 +61,7 @@ pipeline {
           kubectl create ns kserve || true
           kubectl get ns
 
-          # apt-get update && apt-get install -y gettext
-          envsubst < ./serving-cluster/inferenceservice-triton-gpu.yaml > ./serving-cluster/inferenceservice-triton-gpu.generated.yaml
-
-          kubectl apply -f ./serving-cluster/inferenceservice-triton-gpu.generated.yaml --validate=false
+          kubectl apply -f ./serving-cluster/inferenceservice-triton-gpu.yaml --validate=false
           sleep 5
           kubectl delete pod -n kubeflow-user-example-com -l serving.kserve.io/inferenceservice=recsys-triton || true
         '''

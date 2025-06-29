@@ -16,11 +16,11 @@ spec:
         - "--log-verbose=2"
       env:
         - name: AWS_ACCESS_KEY_ID
-          value: ${AWS_ACCESS_KEY_ID}
+          value: AKIA3TD2SE4D4EJQWMMS
         - name: AWS_SECRET_ACCESS_KEY
-          value: ${AWS_SECRET_ACCESS_KEY}
+          value: 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
         - name: AWS_REGION
-          value: ${AWS_DEFAULT_REGION}
+          value: ap-southeast-1
         - name: S3_USE_HTTPS
           value: "1"
         - name: S3_VERIFY_SSL
