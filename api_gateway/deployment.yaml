@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: api-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+        - name: api-gateway
+          image: nthaiduong83/api-gateway:v5
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: REDIS_HOST
+              value: "redis-master.cache.svc.cluster.local"      # Tên svc Redis (Bitnami chart sẽ sinh ra tên này mặc định)
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              value: "123456"                               # Đặt đúng password của Redis
+            - name: USER_FEATURE_URL
+              value: "http://feature-store-api-service.api-feature-store.svc.cluster.local/user_features"
+            - name: ITEM_FEATURE_URL
+              value: "http://feature-store-api-service.api-feature-store.svc.cluster.local/features_parent_asin"
+            - name: TRITON_URL
+              value: "recsys-triton-predictor.kserve.svc.cluster.local:80"
+            - name: MODEL_NAME
+              value: "ensemble"
+            - name: SEQ_LEN
+              value: "10"
+            - name: MAX_ITEM_ID_LEN
+              value: "1"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"

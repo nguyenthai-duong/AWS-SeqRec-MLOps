@@ -145,6 +145,11 @@ kubectl apply -f ray-worker-pvc.yaml
 helm install raycluster .
 kubectl port-forward svc/raycluster-kuberay-head-svc 10001:10001 -n kubeflow-user-example-com
 
+### check xem pod nào đang dùng gpu:
+kubectl get pods -n kubeflow-user-example-com -o json | jq '.items[] | select(.spec.containers[].resources.limits["nvidia.com/gpu"] != null) | .metadata.name'
+
+
+
 Install MLflow
 docker build -t nthaiduong83/mlflow-kubeflow:v1 -f ./mlflow-stack/mlflow.Dockerfile .
 kind load docker-image nthaiduong83/mlflow-kubeflow:v1 --name datn-training1
@@ -221,6 +226,7 @@ docker build -t nthaiduong83/feature-store-api:v3 -f feature_store_api.Dockerfil
 docker push nthaiduong83/feature-store-api:v3
 
 kubectl create ns api-feature-store
+kubectl delete secret aws-credentials --namespace=api-feature-store
 kubectl create secret generic aws-credentials --from-env-file=../.env --namespace=api-feature-store
 
 kubectl apply -f deployment.yaml
@@ -344,3 +350,25 @@ tạo credential
 chọn Username with password
 
 Chạy pipeline
+
+
+kubectl port-forward pod/recsys-triton-predictor-00002-deployment-cdf446957-js2d5 8001:8001 -n kserve
+
+
+## API GATEWAY
+cd api_gateway
+docker build -t nthaiduong83/api-gateway:v5 .
+kind load docker-image  nthaiduong83/api-gateway:v5 --name datn-serving
+
+
+kubectl create ns api-gateway
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+
+kubectl port-forward svc/api-gateway-service 8009:80 -n api-gateway
+
+### UI
+cd ui
+conda create -n ui -y
+conda activate ui
+pip install -r requirements.txt

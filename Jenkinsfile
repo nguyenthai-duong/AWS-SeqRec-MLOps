@@ -63,7 +63,7 @@ pipeline {
 
           kubectl apply -f ./serving-cluster/inferenceservice-triton-gpu.yaml --validate=false
           sleep 5
-          kubectl delete pod -n kubeflow-user-example-com -l serving.kserve.io/inferenceservice=recsys-triton || true
+          kubectl delete pod -n kserve -l serving.kserve.io/inferenceservice=recsys-triton || true
         '''
       }
     }

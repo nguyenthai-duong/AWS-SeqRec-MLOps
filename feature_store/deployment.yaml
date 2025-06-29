@@ -4,7 +4,7 @@ metadata:
   name: feature-store-api
   namespace: api-feature-store
 spec:
-  replicas: 5
+  replicas: 1
   selector:
     matchLabels:
       app: feature-store-api

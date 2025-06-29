@@ -1,0 +1,13 @@
+project: feature_store_recsys
+
+registry:
+  registry_type: sql
+  path: "${POSTGRES_URI_REGISTRY}"
+
+provider: aws
+
+entity_key_serialization_version: 2
+
+online_store:
+  type: dynamodb
+  region: ap-southeast-1
