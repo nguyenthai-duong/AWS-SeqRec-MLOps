@@ -334,7 +334,7 @@ docker run --gpus=1 --rm \
 kind load docker-image tritonserver-datn:v4 --name datn-serving
 
 ### Jenkins pipeline
-kind get kubeconfig --name datn-serving > kubeconfig-serving.yaml
+kind get kubeconfig --name datn-serving --internal > kubeconfig-serving.yaml
 Cài plugin
 docker pipeline, kubernetes cli, stage view
 
@@ -342,3 +342,5 @@ Tạo pipeline, from scm
 điền link git
 tạo credential
 chọn Username with password
+
+Chạy pipeline
