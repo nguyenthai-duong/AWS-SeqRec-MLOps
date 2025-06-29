@@ -1,0 +1,37 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: recsys-triton
+  namespace: kserve
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 2
+    containers:
+    - name: kserve-container
+      image: nthaiduong83/tritonserver-datn:v3
+      imagePullPolicy: IfNotPresent
+      args:
+        - "--model-repository=s3://datn-onnx-gpu/"
+        - "--log-verbose=2"
+      env:
+        - name: AWS_ACCESS_KEY_ID
+          value: AKIA3TD2SE4DQ2STIEDA
+        - name: AWS_SECRET_ACCESS_KEY
+          value: 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
+        - name: AWS_REGION
+          value: ap-southeast-1
+        - name: S3_USE_HTTPS
+          value: "1"
+        - name: S3_VERIFY_SSL
+          value: "0"
+      resources:
+        requests:
+          cpu: "1"
+          memory: "1Gi"
+        limits:
+          cpu: "4"
+          memory: "8Gi"
+      ports:
+        - name: h2c        # quan trọng để Knative nhận là HTTP2
+          containerPort: 8001
