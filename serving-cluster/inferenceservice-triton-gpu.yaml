@@ -9,18 +9,18 @@ spec:
     maxReplicas: 2
     containers:
     - name: kserve-container
-      image: nthaiduong83/tritonserver-datn:v3
+      image: nthaiduong83/tritonserver-datn:v4
       imagePullPolicy: IfNotPresent
       args:
-        - "--model-repository=s3://datn-onnx-gpu/"
+        - "--model-repository=s3://datn-onnx/"
         - "--log-verbose=2"
       env:
         - name: AWS_ACCESS_KEY_ID
-          value: AKIA3TD2SE4DQ2STIEDA
+          value: ${AWS_ACCESS_KEY_ID}
         - name: AWS_SECRET_ACCESS_KEY
-          value: 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
+          value: ${AWS_SECRET_ACCESS_KEY}
         - name: AWS_REGION
-          value: ap-southeast-1
+          value: ${AWS_DEFAULT_REGION}
         - name: S3_USE_HTTPS
           value: "1"
         - name: S3_VERIFY_SSL
@@ -33,5 +33,5 @@ spec:
           cpu: "4"
           memory: "8Gi"
       ports:
-        - name: h2c        # quan trọng để Knative nhận là HTTP2
+        - name: h2c
           containerPort: 8001
