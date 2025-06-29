@@ -1,0 +1,13 @@
+# Use the official Triton Server image as the base
+FROM nvcr.io/nvidia/tritonserver:24.09-py3
+
+# Install Python dependencies required for the Python backend models
+RUN pip install --no-cache-dir dill numpy pandas scikit-learn
+
+COPY src /opt/tritonserver/src
+
+# Expose default Triton ports
+EXPOSE 8000 8001 8002
+
+# Set the entrypoint to run Triton Server
+ENTRYPOINT ["tritonserver"]

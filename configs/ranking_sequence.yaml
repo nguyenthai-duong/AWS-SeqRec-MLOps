@@ -1,0 +1,113 @@
+# AWS and MinIO configuration
+aws:
+  aws_access_key_id: "admin"
+  aws_secret_access_key: "Password1234"
+  mlflow_s3_endpoint_url: "http://minio-service.mlflow.svc.cluster.local:9000"
+  mlflow_tracking_uri: "http://mlflow-tracking-service.mlflow.svc.cluster.local:5000"
+
+# Ray configuration
+ray:
+  address: "ray://localhost:10001"
+
+# Data paths
+data:
+  train_data_path: "/data/train_features_neg_df.parquet"
+  val_data_path: "/data/val_features_neg_df.parquet"
+  idm_path: "/data/idm.json"
+  item_metadata_pipeline_fp: "/data/item_metadata_pipeline.dill"
+
+# Dataset configuration
+dataset:
+  user_col: "user_indice"
+  item_col: "item_indice"
+  rating_col: "rating"
+  timestamp_col: "event_timestamp"
+  required_columns:
+    - "parent_asin_rating_cnt_30d"
+    - "parent_asin_rating_avg_prev_rating_90d"
+    - "main_category"
+    - "price"
+    - "parent_asin_rating_cnt_7d"
+    - "parent_asin_rating_avg_prev_rating_30d"
+    - "categories"
+    - "parent_asin_rating_avg_prev_rating_365d"
+    - "parent_asin_rating_cnt_365d"
+    - "parent_asin_rating_cnt_90d"
+    - "parent_asin_rating_avg_prev_rating_7d"
+
+# Training configuration
+training:
+  max_epochs: 20
+  num_workers: 2
+  batch_size: 256
+  learning_rate: 1e-3
+  l2_reg: 1e-5
+  dropout: 0.3
+  scheduler_factor: 0.1
+  scheduler_patience: 3
+  top_k: 10
+  item_sequence_ts_bucket_size: 10
+  bucket_embedding_dim: 16
+
+# Experiment configuration
+experiment:
+  name: "seq_tune_v1"
+  checkpoint_dir: "/tmp/ray_sequence_checkpoints"
+  storage_path: "/tmp/ray_sequence_results"
+  log_dir: "/tmp/ray_sequence_checkpoints/tuning"
+
+# Item2Vec configuration
+item2vec:
+  item2vec_model_name: "item2vec_skipgram"
+  idm_artifact_path: "id_mapper/id_mapper.json"
+  champion_tag_key: "champion"
+
+# Hyperparameter tuning configuration
+tune:
+  metric: "val_roc_auc"
+  mode: "max"
+  num_samples: 5
+  learning_rate:
+    min: 1e-5
+    max: 1e-2
+  l2_reg:
+    min: 1e-6
+    max: 1e-3
+  batch_size:
+    values: [128, 256, 512]
+  dropout:
+    min: 0.1
+    max: 0.5
+  scheduler_factor:
+    min: 0.1
+    max: 0.5
+  scheduler_patience:
+    values: [2, 3, 4]
+  hyperopt:
+    n_initial_points: 2
+  stopper:
+    std: 0.001
+    num_results: 5
+    grace_period: 10
+  resources_per_trial:
+    cpu: 1
+    gpu: 1
+  early_stopping:
+    monitor: "val_roc_auc"
+    patience: 3
+    mode: "max"
+  model_checkpoint:
+    filename: "best"
+    save_top_k: 1
+    monitor: "val_roc_auc"
+    mode: "max"
+
+# MLflow configuration
+mlflow:
+  experiment_tags:
+    model_type: "sequence_rating"
+    dataset_version: "v1"
+  model_metadata:
+    model_type: "SequenceRatingPrediction"
+    task: "rating-prediction"
+    framework: "pytorch"

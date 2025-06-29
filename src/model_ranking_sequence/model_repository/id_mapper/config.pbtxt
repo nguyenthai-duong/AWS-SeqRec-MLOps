@@ -1,0 +1,15 @@
+
+name: "id_mapper"
+backend: "python"
+max_batch_size: 512
+input [
+  { name: "user_ids", data_type: TYPE_STRING, dims: [-1] },
+  { name: "input_seq", data_type: TYPE_STRING, dims: [-1] },
+  { name: "target_items", data_type: TYPE_STRING, dims: [1] }
+]
+output [
+  { name: "user_indices", data_type: TYPE_INT64, dims: [1] },
+  { name: "seq_indices", data_type: TYPE_INT64, dims: [10] },
+  { name: "target_indices", data_type: TYPE_INT64, dims: [1] }
+]
+instance_group [ { kind: KIND_CPU, count: 4 } ]

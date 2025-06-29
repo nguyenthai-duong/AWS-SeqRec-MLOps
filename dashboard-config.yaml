@@ -1,0 +1,159 @@
+apiVersion: v1
+data:
+  links: |-
+    {
+      "menuLinks": [
+        {
+          "type": "item",
+          "link": "/jupyter/",
+          "text": "Notebooks",
+          "icon": "book"
+        },
+        {
+          "type": "item",
+          "link": "/tensorboards/",
+          "text": "Tensorboards",
+          "icon": "assessment"
+        },
+        {
+          "type": "item",
+          "link": "/volumes/",
+          "text": "Volumes",
+          "icon": "device:storage"
+        },
+        {
+          "type": "item",
+          "link": "/kserve-endpoints/",
+          "text": "Endpoints",
+          "icon": "kubeflow:models"
+        },
+        {
+          "type": "item",
+          "link": "/katib/",
+          "text": "Experiments (AutoML)",
+          "icon": "kubeflow:katib"
+        },
+        {
+          "type": "item",
+          "text": "Experiments (KFP)",
+          "link": "/pipeline/#/experiments",
+          "icon": "done-all"
+        },
+        {
+          "type": "item",
+          "link": "/pipeline/#/pipelines",
+          "text": "Pipelines",
+          "icon": "kubeflow:pipeline-centered"
+        },
+        {
+          "type": "item",
+          "link": "/pipeline/#/runs",
+          "text": "Runs",
+          "icon": "maps:directions-run"
+        },
+        {
+          "type": "item",
+          "link": "/pipeline/#/recurringruns",
+          "text": "Recurring Runs",
+          "icon": "device:access-alarm"
+        },
+        {
+          "type": "item",
+          "link": "/pipeline/#/artifacts",
+          "text": "Artifacts",
+          "icon": "editor:bubble-chart"
+        },
+        {
+          "type": "item",
+          "link": "/pipeline/#/executions",
+          "text": "Executions",
+          "icon": "av:play-arrow"
+        },
+        {
+        "type": "item",
+        "link": "/mlflow/",
+        "text": "MLflow",
+        "icon": "icons:cached"
+        },
+        {
+        "type": "item",
+        "link": "/jenkins/",
+        "text": "Jenkins",
+        "icon": "icons:extension"
+        }
+      ],
+      "externalLinks": [ ],
+        "quickLinks": [
+          {
+            "text": "Upload a pipeline",
+            "desc": "Pipelines",
+            "link": "/pipeline/"
+          },
+          {
+            "text": "View all pipeline runs",
+            "desc": "Pipelines",
+            "link": "/pipeline/#/runs"
+          },
+          {
+            "text": "Create a new Notebook server",
+            "desc": "Notebook Servers",
+            "link": "/jupyter/new?namespace=kubeflow"
+          },
+          {
+            "text": "View Katib Experiments",
+            "desc": "Katib",
+            "link": "/katib/"
+          }
+        ],
+        "documentationItems": [
+          {
+            "text": "Getting Started with Kubeflow",
+            "desc": "Get your machine-learning workflow up and running on Kubeflow",
+            "link": "https://www.kubeflow.org/docs/started/getting-started/"
+          },
+          {
+            "text": "MiniKF",
+            "desc": "A fast and easy way to deploy Kubeflow locally",
+            "link": "https://www.kubeflow.org/docs/distributions/minikf/"
+          },
+          {
+            "text": "Microk8s for Kubeflow",
+            "desc": "Quickly get Kubeflow running locally on native hypervisors",
+            "link": "https://www.kubeflow.org/docs/distributions/microk8s/kubeflow-on-microk8s/"
+          },
+          {
+            "text": "Kubeflow on GCP",
+            "desc": "Running Kubeflow on Kubernetes Engine and Google Cloud Platform",
+            "link": "https://www.kubeflow.org/docs/gke/"
+          },
+          {
+            "text": "Kubeflow on AWS",
+            "desc": "Running Kubeflow on Elastic Container Service and Amazon Web Services",
+            "link": "https://www.kubeflow.org/docs/aws/"
+          },
+          {
+            "text": "Requirements for Kubeflow",
+            "desc": "Get more detailed information about using Kubeflow and its components",
+            "link": "https://www.kubeflow.org/docs/started/requirements/"
+          }
+        ]
+    }
+  settings: |-
+    {
+      "DASHBOARD_FORCE_IFRAME": true
+    }
+kind: ConfigMap
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","data":{"links":"{\n  \"menuLinks\": [\n    {\n      \"type\": \"item\",\n      \"link\": \"/jupyter/\",\n      \"text\": \"Notebooks\",\n      \"icon\": \"book\"\n    },\n    {\n      \"type\": \"item\",\n      \"link\": \"/tensorboards/\",\n      \"text\": \"Tensorboards\",\n      \"icon\": \"assessment\"\n    },\n    {\n      \"type\": \"item\",\n      \"link\": \"/volumes/\",\n      \"text\": \"Volumes\",\n      \"icon\": \"device:storage\"\n    },\n    {\n      \"type\": \"item\",\n      \"link\": \"/kserve-endpoints/\",\n      \"text\": \"Endpoints\",\n      \"icon\": \"kubeflow:models\"\n    },\n    {\n      \"type\": \"item\",\n      \"link\": \"/katib/\",\n      \"text\": \"Experiments (AutoML)\",\n      \"icon\": \"kubeflow:katib\"\n    },\n    {\n      \"type\": \"item\",\n      \"text\": \"Experiments (KFP)\",\n      \"link\": \"/pipeline/#/experiments\",\n      \"icon\": \"done-all\"\n    },\n    {\n      \"type\": \"item\",\n      \"link\": \"/pipeline/#/pipelines\",\n      \"text\": \"Pipelines\",\n      \"icon\": \"kubeflow:pipeline-centered\"\n    },\n    {\n      \"type\": \"item\",\n      \"link\": \"/pipeline/#/runs\",\n      \"text\": \"Runs\",\n      \"icon\": \"maps:directions-run\"\n    },\n    {\n      \"type\": \"item\",\n      \"link\": \"/pipeline/#/recurringruns\",\n      \"text\": \"Recurring Runs\",\n      \"icon\": \"device:access-alarm\"\n    },\n    {\n      \"type\": \"item\",\n      \"link\": \"/pipeline/#/artifacts\",\n      \"text\": \"Artifacts\",\n      \"icon\": \"editor:bubble-chart\"\n    },\n    {\n      \"type\": \"item\",\n      \"link\": \"/pipeline/#/executions\",\n      \"text\": \"Executions\",\n      \"icon\": \"av:play-arrow\"\n    },\n    {\n    \"type\": \"item\",\n    \"link\": \"/mlflow/\",\n    \"text\": \"MLflow\",\n    \"icon\": \"icons:cached\"\n    },\n    {\n    \"type\": \"item\",\n    \"link\": \"/jenkins/\",\n    \"text\": \"Jenkins\",\n    \"icon\": \"icons:build-circle\"\n    }\n  ],\n  \"externalLinks\": [ ],\n    \"quickLinks\": [\n      {\n        \"text\": \"Upload a pipeline\",\n        \"desc\": \"Pipelines\",\n        \"link\": \"/pipeline/\"\n      },\n      {\n        \"text\": \"View all pipeline runs\",\n        \"desc\": \"Pipelines\",\n        \"link\": \"/pipeline/#/runs\"\n      },\n      {\n        \"text\": \"Create a new Notebook server\",\n        \"desc\": \"Notebook Servers\",\n        \"link\": \"/jupyter/new?namespace=kubeflow\"\n      },\n      {\n        \"text\": \"View Katib Experiments\",\n        \"desc\": \"Katib\",\n        \"link\": \"/katib/\"\n      }\n    ],\n    \"documentationItems\": [\n      {\n        \"text\": \"Getting Started with Kubeflow\",\n        \"desc\": \"Get your machine-learning workflow up and running on Kubeflow\",\n        \"link\": \"https://www.kubeflow.org/docs/started/getting-started/\"\n      },\n      {\n        \"text\": \"MiniKF\",\n        \"desc\": \"A fast and easy way to deploy Kubeflow locally\",\n        \"link\": \"https://www.kubeflow.org/docs/distributions/minikf/\"\n      },\n      {\n        \"text\": \"Microk8s for Kubeflow\",\n        \"desc\": \"Quickly get Kubeflow running locally on native hypervisors\",\n        \"link\": \"https://www.kubeflow.org/docs/distributions/microk8s/kubeflow-on-microk8s/\"\n      },\n      {\n        \"text\": \"Kubeflow on GCP\",\n        \"desc\": \"Running Kubeflow on Kubernetes Engine and Google Cloud Platform\",\n        \"link\": \"https://www.kubeflow.org/docs/gke/\"\n      },\n      {\n        \"text\": \"Kubeflow on AWS\",\n        \"desc\": \"Running Kubeflow on Elastic Container Service and Amazon Web Services\",\n        \"link\": \"https://www.kubeflow.org/docs/aws/\"\n      },\n      {\n        \"text\": \"Requirements for Kubeflow\",\n        \"desc\": \"Get more detailed information about using Kubeflow and its components\",\n        \"link\": \"https://www.kubeflow.org/docs/started/requirements/\"\n      }\n    ]\n}","settings":"{\n  \"DASHBOARD_FORCE_IFRAME\": true\n}"},"kind":"ConfigMap","metadata":{"annotations":{},"creationTimestamp":"2025-06-26T15:36:29Z","labels":{"app":"centraldashboard","app.kubernetes.io/component":"centraldashboard","app.kubernetes.io/name":"centraldashboard","kustomize.component":"centraldashboard"},"name":"centraldashboard-config","namespace":"kubeflow","resourceVersion":"2058","uid":"5cea4ef6-7fcc-4347-86b8-2906b3cda096"}}
+  creationTimestamp: "2025-06-26T15:36:29Z"
+  labels:
+    app: centraldashboard
+    app.kubernetes.io/component: centraldashboard
+    app.kubernetes.io/name: centraldashboard
+    kustomize.component: centraldashboard
+  name: centraldashboard-config
+  namespace: kubeflow
+  resourceVersion: "53746"
+  uid: 5cea4ef6-7fcc-4347-86b8-2906b3cda096

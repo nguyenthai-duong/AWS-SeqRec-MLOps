@@ -1,0 +1,15 @@
+
+name: "ranker"
+platform: "onnxruntime_onnx"
+max_batch_size: 512
+input [
+  { name: "user_ids", data_type: TYPE_INT64, dims: [1] },
+  { name: "input_seq", data_type: TYPE_INT64, dims: [10] },
+  { name: "input_seq_ts_bucket", data_type: TYPE_INT64, dims: [10] },
+  { name: "item_features", data_type: TYPE_FP32, dims: [416] },
+  { name: "target_item", data_type: TYPE_INT64, dims: [1] }
+]
+output [
+  { name: "output", data_type: TYPE_FP32, dims: [1] }
+]
+instance_group [ { kind: KIND_GPU, count: 4 } ]

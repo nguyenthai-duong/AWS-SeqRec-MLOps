@@ -2,7 +2,7 @@ project: feature_store_recsys
 
 registry:
   registry_type: sql
-  path: postgresql+psycopg2://postgres:postgres@db-instance-feature-store.cdkwg6wyo7r8.ap-southeast-1.rds.amazonaws.com:5432/postgres
+  path: "${POSTGRES_URI_REGISTRY}"
 
 provider: aws
 
@@ -14,8 +14,8 @@ offline_store:
     spark.master: "local[*]"
     spark.ui.enabled: "false"
     spark.eventLog.enabled: "false"
-    spark.hadoop.fs.s3a.access.key: "AKIA3TD2SE4DQ2STIEDA"
-    spark.hadoop.fs.s3a.secret.key: "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"
+    spark.hadoop.fs.s3a.access.key: "${AWS_ACCESS_KEY_ID}"
+    spark.hadoop.fs.s3a.secret.key: "${AWS_SECRET_ACCESS_KEY}"
     spark.sql.catalogImplementation: "hive"
     spark.sql.parser.quotedRegexColumnNames: "true"
     spark.sql.session.timeZone: "UTC"

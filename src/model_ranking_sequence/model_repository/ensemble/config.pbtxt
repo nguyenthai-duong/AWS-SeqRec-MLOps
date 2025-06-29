@@ -1,0 +1,65 @@
+
+name: "ensemble"
+platform: "ensemble"
+max_batch_size: 512
+input [
+  { name: "user_ids", data_type: TYPE_STRING, dims: [-1] },
+  { name: "input_seq", data_type: TYPE_STRING, dims: [-1] },
+  { name: "input_seq_ts_bucket", data_type: TYPE_INT64, dims: [10] },
+  { name: "items", data_type: TYPE_STRING, dims: [1] },
+  { name: "categories", data_type: TYPE_STRING, dims: [-1] },
+  { name: "prices", data_type: TYPE_FP32, dims: [1] },
+  { name: "main_categories", data_type: TYPE_STRING, dims: [-1] },
+  { name: "rating_cnt_365d", data_type: TYPE_INT64, dims: [1] },
+  { name: "rating_avg_365d", data_type: TYPE_FP32, dims: [1] },
+  { name: "rating_cnt_90d", data_type: TYPE_INT64, dims: [1] },
+  { name: "rating_avg_90d", data_type: TYPE_FP32, dims: [1] },
+  { name: "rating_cnt_30d", data_type: TYPE_INT64, dims: [1] },
+  { name: "rating_avg_30d", data_type: TYPE_FP32, dims: [1] },
+  { name: "rating_cnt_7d", data_type: TYPE_INT64, dims: [1] },
+  { name: "rating_avg_7d", data_type: TYPE_FP32, dims: [1] }
+]
+output [
+  { name: "output", data_type: TYPE_FP32, dims: [1] }
+]
+ensemble_scheduling {
+  step [
+    {
+      model_name: "id_mapper"
+      model_version: -1
+      input_map { key: "user_ids", value: "user_ids" }
+      input_map { key: "input_seq", value: "input_seq" }
+      input_map { key: "target_items", value: "items" }
+      output_map { key: "user_indices", value: "user_indices" }
+      output_map { key: "seq_indices", value: "seq_indices" }
+      output_map { key: "target_indices", value: "target_indices" }
+    },
+    {
+      model_name: "item_pipeline"
+      model_version: -1
+      input_map { key: "items", value: "items" }
+      input_map { key: "categories", value: "categories" }
+      input_map { key: "prices", value: "prices" }
+      input_map { key: "main_categories", value: "main_categories" }
+      input_map { key: "rating_cnt_365d", value: "rating_cnt_365d" }
+      input_map { key: "rating_avg_365d", value: "rating_avg_365d" }
+      input_map { key: "rating_cnt_90d", value: "rating_cnt_90d" }
+      input_map { key: "rating_avg_90d", value: "rating_avg_90d" }
+      input_map { key: "rating_cnt_30d", value: "rating_cnt_30d" }
+      input_map { key: "rating_avg_30d", value: "rating_avg_30d" }
+      input_map { key: "rating_cnt_7d", value: "rating_cnt_7d" }
+      input_map { key: "rating_avg_7d", value: "rating_avg_7d" }
+      output_map { key: "item_features", value: "item_features" }
+    },
+    {
+      model_name: "ranker"
+      model_version: -1
+      input_map { key: "user_ids", value: "user_indices" }
+      input_map { key: "input_seq", value: "seq_indices" }
+      input_map { key: "input_seq_ts_bucket", value: "input_seq_ts_bucket" }
+      input_map { key: "item_features", value: "item_features" }
+      input_map { key: "target_item", value: "target_indices" }
+      output_map { key: "output", value: "output" }
+    }
+  ]
+}

@@ -35,7 +35,7 @@ ml = [
     "torch<3.0.0,>=2.4.1",
     "scikit-learn<2.0.0,>=1.5.1",
     "mlflow==2.16.2",
-    "evidently<1.0.0,>=0.4.37",
+    "evidently==0.6.7",
     "ray[tune,train]==2.44.1",
     "lightning==2.5.1",
     "virtualenv==20.30.0",

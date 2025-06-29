@@ -1,0 +1,39 @@
+FROM jenkins/jenkins:lts-jdk17
+
+USER root
+
+RUN curl https://get.docker.com > dockerinstall && chmod 777 dockerinstall && ./dockerinstall && \
+    curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl && \
+    chmod +x ./kubectl && \
+    mv ./kubectl /usr/local/bin/kubectl && \
+    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+ENV CONDA_DIR=/opt/conda
+RUN apt-get update && apt-get install -y wget bzip2 && \
+    wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh && \
+    bash /tmp/miniconda.sh -b -p $CONDA_DIR && \
+    rm /tmp/miniconda.sh && \
+    $CONDA_DIR/bin/conda clean -afy && \
+    ln -s $CONDA_DIR/etc/profile.d/conda.sh /etc/profile.d/conda.sh
+
+ENV PATH=$CONDA_DIR/bin:$PATH
+
+RUN conda create -y -n datn python=3.11 -c conda-forge && conda clean -afy
+
+RUN conda run -n datn pip install \
+    torch==2.6.0 --extra-index-url https://download.pytorch.org/whl/cu124 \
+    mlflow==2.16.2 \
+    boto3==1.37.1 \
+    dill==0.3.8 \
+    onnx==1.17.0 \
+    pandas==2.1.4 \
+    numpy==1.26.4 \
+    pyarrow==16.1.0 \
+    scikit-learn==1.6.1 \
+    uv==0.6.2
+
+# Đảm bảo user jenkins có quyền docker
+RUN usermod -aG docker jenkins
+
+USER jenkins
+

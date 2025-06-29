@@ -1,0 +1,6 @@
+apiVersion: v2
+name: mlflow-stack
+description: MLflow Tracking full stack (MinIO, Postgres, MLflow) for dev/testing, integrate with Kubeflow
+type: application
+version: 0.1.0
+appVersion: "1.0"

@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feature-store-api
+  namespace: api-feature-store
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: feature-store-api
+  template:
+    metadata:
+      labels:
+        app: feature-store-api
+    spec:
+      containers:
+      - name: feature-store-api
+        image: nthaiduong83/feature-store-api:v3
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - secretRef:
+            name: aws-credentials
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"

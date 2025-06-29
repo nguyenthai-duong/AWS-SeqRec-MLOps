@@ -1,0 +1,348 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: feature-engineering-pipeline-
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.4.0, pipelines.kubeflow.org/pipeline_compilation_time: '2025-06-28T19:20:55.927476',
+    pipelines.kubeflow.org/pipeline_spec: '{"description": "Pipeline for running feature
+      engineering, negative sampling and item2vec preparation", "name": "Feature Engineering
+      Pipeline"}'}
+  labels: {pipelines.kubeflow.org/kfp_sdk_version: 1.4.0}
+spec:
+  entrypoint: feature-engineering-pipeline
+  templates:
+  - name: feature-engineering-op
+    container:
+      args: [--output-path, /data/papermill-output/feature-output.ipynb, '----output-paths',
+        /tmp/outputs/output_path/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - "def feature_engineering_op(\n    output_path\n):\n    import subprocess\n\
+        \    from pathlib import Path\n    import os\n    import sys\n\n    # import\
+        \ uuid\n    # output_path = f\"{output_path}-{str(uuid.uuid4())[:8]}\"\n\n\
+        \    # Debug th\xF4ng tin v\u1EC1 volume mounts\n    print(\"Checking volume\
+        \ mounts:\")\n    print(f\"Contents of /app: {os.listdir('/app')}\")\n   \
+        \ print(f\"Contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}\"\
+        )\n    print(f\"Contents of /data: {os.listdir('/data')}\")\n\n    # T\u1EA1\
+        o th\u01B0 m\u1EE5c ch\u1EE9a output n\u1EBFu ch\u01B0a c\xF3\n    Path(output_path).parent.mkdir(parents=True,\
+        \ exist_ok=True)\n\n    # \u0110\u1EA3m b\u1EA3o th\u01B0 m\u1EE5c output\
+        \ t\u1ED3n t\u1EA1i\n    os.makedirs(\"/tmp/outputs/output_path\", exist_ok=True)\n\
+        \n    # Ki\u1EC3m tra s\u1EF1 t\u1ED3n t\u1EA1i c\u1EE7a file\n    pipeline_path\
+        \ = \"/app/src/feature_engineer/000_feature_pipeline.py\"\n    print(f\"Looking\
+        \ for pipeline at: {pipeline_path}\")\n    print(f\"Current working directory:\
+        \ {os.getcwd()}\")\n    print(f\"Directory contents of /app/src/feature_engineer:\
+        \ {os.listdir('/app/src/feature_engineer')}\")\n\n    if not os.path.exists(pipeline_path):\n\
+        \        print(f\"Error: File not found at {pipeline_path}\")\n        print(\"\
+        Current working directory:\", os.getcwd())\n        print(\"Directory contents:\"\
+        , os.listdir(\"/app/src/feature_engineer\"))\n        sys.exit(1)\n\n    try:\n\
+        \        print(f\"Running command: uv run {pipeline_path}\")\n        subprocess.run([\"\
+        uv\", \"run\", pipeline_path], check=True)\n    except subprocess.CalledProcessError\
+        \ as e:\n        print(f\"Error running pipeline: {e}\")\n        print(\"\
+        Command output:\", e.output if hasattr(e, 'output') else \"No output\")\n\
+        \        sys.exit(1)\n\n    return (output_path,)\n\ndef _serialize_str(str_value:\
+        \ str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value\
+        \ \"{}\" has type \"{}\" instead of str.'.format(str(str_value), str(type(str_value))))\n\
+        \    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Feature\
+        \ engineering op', description='')\n_parser.add_argument(\"--output-path\"\
+        , dest=\"output_path\", type=str, required=True, default=argparse.SUPPRESS)\n\
+        _parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str,\
+        \ nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"\
+        _output_paths\", [])\n\n_outputs = feature_engineering_op(**_parsed_args)\n\
+        \n_output_serializers = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx,\
+        \ output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n\
+        \    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n\
+        \        f.write(_output_serializers[idx](_outputs[idx]))\n"
+      env:
+      - {name: PVC_PATH, value: /data}
+      - name: AWS_REGION
+        valueFrom:
+          secretKeyRef: {key: AWS_REGION, name: aws-credentials}
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef: {key: AWS_ACCESS_KEY_ID, name: aws-credentials}
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef: {key: AWS_SECRET_ACCESS_KEY, name: aws-credentials}
+      - name: S3_BUCKET
+        valueFrom:
+          secretKeyRef: {key: S3_BUCKET, name: aws-credentials}
+      - name: POSTGRES_URI_REGISTRY
+        valueFrom:
+          secretKeyRef: {key: POSTGRES_URI_REGISTRY, name: aws-credentials}
+      image: nthaiduong83/feature_pipeline:v6
+      resources:
+        requests: {memory: 2Gi}
+      volumeMounts:
+      - {mountPath: /data, name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7}
+    outputs:
+      artifacts:
+      - {name: feature-engineering-op-output_path, path: /tmp/outputs/output_path/data}
+    metadata:
+      annotations: {debug/mount-path: /data, pipelines.kubeflow.org/component_spec: '{"implementation":
+          {"container": {"args": ["--output-path", {"inputValue": "output_path"},
+          "----output-paths", {"outputPath": "output_path"}], "command": ["sh", "-ec",
+          "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
+          -u \"$program_path\" \"$@\"\n", "def feature_engineering_op(\n    output_path\n):\n    import
+          subprocess\n    from pathlib import Path\n    import os\n    import sys\n\n    #
+          import uuid\n    # output_path = f\"{output_path}-{str(uuid.uuid4())[:8]}\"\n\n    #
+          Debug th\u00f4ng tin v\u1ec1 volume mounts\n    print(\"Checking volume
+          mounts:\")\n    print(f\"Contents of /app: {os.listdir(''/app'')}\")\n    print(f\"Contents
+          of /app/src/feature_engineer: {os.listdir(''/app/src/feature_engineer'')}\")\n    print(f\"Contents
+          of /data: {os.listdir(''/data'')}\")\n\n    # T\u1ea1o th\u01b0 m\u1ee5c
+          ch\u1ee9a output n\u1ebfu ch\u01b0a c\u00f3\n    Path(output_path).parent.mkdir(parents=True,
+          exist_ok=True)\n\n    # \u0110\u1ea3m b\u1ea3o th\u01b0 m\u1ee5c output
+          t\u1ed3n t\u1ea1i\n    os.makedirs(\"/tmp/outputs/output_path\", exist_ok=True)\n\n    #
+          Ki\u1ec3m tra s\u1ef1 t\u1ed3n t\u1ea1i c\u1ee7a file\n    pipeline_path
+          = \"/app/src/feature_engineer/000_feature_pipeline.py\"\n    print(f\"Looking
+          for pipeline at: {pipeline_path}\")\n    print(f\"Current working directory:
+          {os.getcwd()}\")\n    print(f\"Directory contents of /app/src/feature_engineer:
+          {os.listdir(''/app/src/feature_engineer'')}\")\n\n    if not os.path.exists(pipeline_path):\n        print(f\"Error:
+          File not found at {pipeline_path}\")\n        print(\"Current working directory:\",
+          os.getcwd())\n        print(\"Directory contents:\", os.listdir(\"/app/src/feature_engineer\"))\n        sys.exit(1)\n\n    try:\n        print(f\"Running
+          command: uv run {pipeline_path}\")\n        subprocess.run([\"uv\", \"run\",
+          pipeline_path], check=True)\n    except subprocess.CalledProcessError as
+          e:\n        print(f\"Error running pipeline: {e}\")\n        print(\"Command
+          output:\", e.output if hasattr(e, ''output'') else \"No output\")\n        sys.exit(1)\n\n    return
+          (output_path,)\n\ndef _serialize_str(str_value: str) -> str:\n    if not
+          isinstance(str_value, str):\n        raise TypeError(''Value \"{}\" has
+          type \"{}\" instead of str.''.format(str(str_value), str(type(str_value))))\n    return
+          str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Feature
+          engineering op'', description='''')\n_parser.add_argument(\"--output-path\",
+          dest=\"output_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\",
+          dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files
+          = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = feature_engineering_op(**_parsed_args)\n\n_output_serializers
+          = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
+          OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
+          "image": "nthaiduong83/feature_pipeline:v6"}}, "inputs": [{"name": "output_path",
+          "type": "String"}], "name": "Feature engineering op", "outputs": [{"name":
+          "output_path", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"output_path": "/data/papermill-output/feature-output.ipynb"}',
+        pipelines.kubeflow.org/max_cache_staleness: P0D}
+    volumes:
+    - name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7
+      persistentVolumeClaim: {claimName: data-pvc}
+  - name: feature-engineering-pipeline
+    dag:
+      tasks:
+      - {name: feature-engineering-op, template: feature-engineering-op}
+      - name: negative-sampling-op
+        template: negative-sampling-op
+        dependencies: [feature-engineering-op]
+      - name: prep-item2vec-op
+        template: prep-item2vec-op
+        dependencies: [feature-engineering-op]
+  - name: negative-sampling-op
+    container:
+      args: [--output-path, /data/papermill-output/negative-sampling-output.ipynb,
+        '----output-paths', /tmp/outputs/output_path/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - "def negative_sampling_op(\n    output_path\n):\n    import subprocess\n \
+        \   from pathlib import Path\n    import os\n    import sys\n\n    print(\"\
+        Checking volume mounts:\")\n    print(f\"Contents of /app: {os.listdir('/app')}\"\
+        )\n    print(f\"Contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}\"\
+        )\n    print(f\"Contents of /data: {os.listdir('/data')}\")\n\n    # T\u1EA1\
+        o th\u01B0 m\u1EE5c ch\u1EE9a output n\u1EBFu ch\u01B0a c\xF3\n    Path(output_path).parent.mkdir(parents=True,\
+        \ exist_ok=True)\n\n    # \u0110\u1EA3m b\u1EA3o th\u01B0 m\u1EE5c output\
+        \ t\u1ED3n t\u1EA1i\n    os.makedirs(\"/tmp/outputs/output_path\", exist_ok=True)\n\
+        \n    # Ki\u1EC3m tra s\u1EF1 t\u1ED3n t\u1EA1i c\u1EE7a file\n    pipeline_path\
+        \ = \"/app/src/feature_engineer/010_negative_sample.py\"\n    print(f\"Looking\
+        \ for pipeline at: {pipeline_path}\")\n    print(f\"Current working directory:\
+        \ {os.getcwd()}\")\n    print(f\"Directory contents of /app/src/feature_engineer:\
+        \ {os.listdir('/app/src/feature_engineer')}\")\n\n    if not os.path.exists(pipeline_path):\n\
+        \        print(f\"Error: File not found at {pipeline_path}\")\n        print(\"\
+        Current working directory:\", os.getcwd())\n        print(\"Directory contents:\"\
+        , os.listdir(\"/app/src/feature_engineer\"))\n        sys.exit(1)\n\n    try:\n\
+        \        print(f\"Running command: uv run {pipeline_path}\")\n        subprocess.run([\"\
+        uv\", \"run\", pipeline_path], check=True)\n    except subprocess.CalledProcessError\
+        \ as e:\n        print(f\"Error running pipeline: {e}\")\n        print(\"\
+        Command output:\", e.output if hasattr(e, 'output') else \"No output\")\n\
+        \        sys.exit(1)\n\n    return (output_path,)\n\ndef _serialize_str(str_value:\
+        \ str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value\
+        \ \"{}\" has type \"{}\" instead of str.'.format(str(str_value), str(type(str_value))))\n\
+        \    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Negative\
+        \ sampling op', description='')\n_parser.add_argument(\"--output-path\", dest=\"\
+        output_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+        ----output-paths\", dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args\
+        \ = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\"\
+        , [])\n\n_outputs = negative_sampling_op(**_parsed_args)\n\n_output_serializers\
+        \ = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n\
+        \    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n\
+        \        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+      env:
+      - {name: PVC_PATH, value: /data}
+      - name: AWS_REGION
+        valueFrom:
+          secretKeyRef: {key: AWS_REGION, name: aws-credentials}
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef: {key: AWS_ACCESS_KEY_ID, name: aws-credentials}
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef: {key: AWS_SECRET_ACCESS_KEY, name: aws-credentials}
+      - name: S3_BUCKET
+        valueFrom:
+          secretKeyRef: {key: S3_BUCKET, name: aws-credentials}
+      - name: POSTGRES_URI_REGISTRY
+        valueFrom:
+          secretKeyRef: {key: POSTGRES_URI_REGISTRY, name: aws-credentials}
+      image: nthaiduong83/feature_pipeline:v6
+      resources:
+        requests: {memory: 2Gi}
+      volumeMounts:
+      - {mountPath: /data, name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7}
+    outputs:
+      artifacts:
+      - {name: negative-sampling-op-output_path, path: /tmp/outputs/output_path/data}
+    metadata:
+      annotations: {debug/mount-path: /data, pipelines.kubeflow.org/component_spec: '{"implementation":
+          {"container": {"args": ["--output-path", {"inputValue": "output_path"},
+          "----output-paths", {"outputPath": "output_path"}], "command": ["sh", "-ec",
+          "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
+          -u \"$program_path\" \"$@\"\n", "def negative_sampling_op(\n    output_path\n):\n    import
+          subprocess\n    from pathlib import Path\n    import os\n    import sys\n\n    print(\"Checking
+          volume mounts:\")\n    print(f\"Contents of /app: {os.listdir(''/app'')}\")\n    print(f\"Contents
+          of /app/src/feature_engineer: {os.listdir(''/app/src/feature_engineer'')}\")\n    print(f\"Contents
+          of /data: {os.listdir(''/data'')}\")\n\n    # T\u1ea1o th\u01b0 m\u1ee5c
+          ch\u1ee9a output n\u1ebfu ch\u01b0a c\u00f3\n    Path(output_path).parent.mkdir(parents=True,
+          exist_ok=True)\n\n    # \u0110\u1ea3m b\u1ea3o th\u01b0 m\u1ee5c output
+          t\u1ed3n t\u1ea1i\n    os.makedirs(\"/tmp/outputs/output_path\", exist_ok=True)\n\n    #
+          Ki\u1ec3m tra s\u1ef1 t\u1ed3n t\u1ea1i c\u1ee7a file\n    pipeline_path
+          = \"/app/src/feature_engineer/010_negative_sample.py\"\n    print(f\"Looking
+          for pipeline at: {pipeline_path}\")\n    print(f\"Current working directory:
+          {os.getcwd()}\")\n    print(f\"Directory contents of /app/src/feature_engineer:
+          {os.listdir(''/app/src/feature_engineer'')}\")\n\n    if not os.path.exists(pipeline_path):\n        print(f\"Error:
+          File not found at {pipeline_path}\")\n        print(\"Current working directory:\",
+          os.getcwd())\n        print(\"Directory contents:\", os.listdir(\"/app/src/feature_engineer\"))\n        sys.exit(1)\n\n    try:\n        print(f\"Running
+          command: uv run {pipeline_path}\")\n        subprocess.run([\"uv\", \"run\",
+          pipeline_path], check=True)\n    except subprocess.CalledProcessError as
+          e:\n        print(f\"Error running pipeline: {e}\")\n        print(\"Command
+          output:\", e.output if hasattr(e, ''output'') else \"No output\")\n        sys.exit(1)\n\n    return
+          (output_path,)\n\ndef _serialize_str(str_value: str) -> str:\n    if not
+          isinstance(str_value, str):\n        raise TypeError(''Value \"{}\" has
+          type \"{}\" instead of str.''.format(str(str_value), str(type(str_value))))\n    return
+          str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Negative
+          sampling op'', description='''')\n_parser.add_argument(\"--output-path\",
+          dest=\"output_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\",
+          dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files
+          = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = negative_sampling_op(**_parsed_args)\n\n_output_serializers
+          = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
+          OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
+          "image": "nthaiduong83/feature_pipeline:v6"}}, "inputs": [{"name": "output_path",
+          "type": "String"}], "name": "Negative sampling op", "outputs": [{"name":
+          "output_path", "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}',
+        pipelines.kubeflow.org/arguments.parameters: '{"output_path": "/data/papermill-output/negative-sampling-output.ipynb"}',
+        pipelines.kubeflow.org/max_cache_staleness: P0D}
+    volumes:
+    - name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7
+      persistentVolumeClaim: {claimName: data-pvc}
+  - name: prep-item2vec-op
+    container:
+      args: [--output-path, /data/papermill-output/prep-item2vec-output.ipynb, '----output-paths',
+        /tmp/outputs/output_path/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - "def prep_item2vec_op(\n    output_path\n):\n    import subprocess\n    from\
+        \ pathlib import Path\n    import os\n    import sys\n\n    # Debug th\xF4\
+        ng tin v\u1EC1 volume mounts\n    print(\"Checking volume mounts:\")\n   \
+        \ print(f\"Contents of /app: {os.listdir('/app')}\")\n    print(f\"Contents\
+        \ of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}\"\
+        )\n    print(f\"Contents of /data: {os.listdir('/data')}\")\n\n    # T\u1EA1\
+        o th\u01B0 m\u1EE5c ch\u1EE9a output n\u1EBFu ch\u01B0a c\xF3\n    Path(output_path).parent.mkdir(parents=True,\
+        \ exist_ok=True)\n\n    # \u0110\u1EA3m b\u1EA3o th\u01B0 m\u1EE5c output\
+        \ t\u1ED3n t\u1EA1i\n    os.makedirs(\"/tmp/outputs/output_path\", exist_ok=True)\n\
+        \n    # Ki\u1EC3m tra s\u1EF1 t\u1ED3n t\u1EA1i c\u1EE7a file\n    pipeline_path\
+        \ = \"/app/src/feature_engineer/020_prep_item2vec.py\"\n    print(f\"Looking\
+        \ for pipeline at: {pipeline_path}\")\n    print(f\"Current working directory:\
+        \ {os.getcwd()}\")\n    print(f\"Directory contents of /app/src/feature_engineer:\
+        \ {os.listdir('/app/src/feature_engineer')}\")\n\n    if not os.path.exists(pipeline_path):\n\
+        \        print(f\"Error: File not found at {pipeline_path}\")\n        print(\"\
+        Current working directory:\", os.getcwd())\n        print(\"Directory contents:\"\
+        , os.listdir(\"/app/src/feature_engineer\"))\n        sys.exit(1)\n\n    #\
+        \ Ch\u1EA1y 02_prep_item2vec.py b\u1EB1ng uv run\n    try:\n        print(f\"\
+        Running command: uv run {pipeline_path}\")\n        subprocess.run([\"uv\"\
+        , \"run\", pipeline_path], check=True)\n    except subprocess.CalledProcessError\
+        \ as e:\n        print(f\"Error running pipeline: {e}\")\n        print(\"\
+        Command output:\", e.output if hasattr(e, 'output') else \"No output\")\n\
+        \        sys.exit(1)\n\n    return (output_path,)\n\ndef _serialize_str(str_value:\
+        \ str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value\
+        \ \"{}\" has type \"{}\" instead of str.'.format(str(str_value), str(type(str_value))))\n\
+        \    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Prep\
+        \ item2vec op', description='')\n_parser.add_argument(\"--output-path\", dest=\"\
+        output_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+        ----output-paths\", dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args\
+        \ = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\"\
+        , [])\n\n_outputs = prep_item2vec_op(**_parsed_args)\n\n_output_serializers\
+        \ = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n\
+        \    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n\
+        \        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+      env:
+      - {name: PVC_PATH, value: /data}
+      image: nthaiduong83/feature_pipeline:v6
+      resources:
+        requests: {memory: 2Gi}
+      volumeMounts:
+      - {mountPath: /data, name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7}
+    outputs:
+      artifacts:
+      - {name: prep-item2vec-op-output_path, path: /tmp/outputs/output_path/data}
+    metadata:
+      annotations: {debug/mount-path: /data, pipelines.kubeflow.org/component_spec: '{"implementation":
+          {"container": {"args": ["--output-path", {"inputValue": "output_path"},
+          "----output-paths", {"outputPath": "output_path"}], "command": ["sh", "-ec",
+          "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3
+          -u \"$program_path\" \"$@\"\n", "def prep_item2vec_op(\n    output_path\n):\n    import
+          subprocess\n    from pathlib import Path\n    import os\n    import sys\n\n    #
+          Debug th\u00f4ng tin v\u1ec1 volume mounts\n    print(\"Checking volume
+          mounts:\")\n    print(f\"Contents of /app: {os.listdir(''/app'')}\")\n    print(f\"Contents
+          of /app/src/feature_engineer: {os.listdir(''/app/src/feature_engineer'')}\")\n    print(f\"Contents
+          of /data: {os.listdir(''/data'')}\")\n\n    # T\u1ea1o th\u01b0 m\u1ee5c
+          ch\u1ee9a output n\u1ebfu ch\u01b0a c\u00f3\n    Path(output_path).parent.mkdir(parents=True,
+          exist_ok=True)\n\n    # \u0110\u1ea3m b\u1ea3o th\u01b0 m\u1ee5c output
+          t\u1ed3n t\u1ea1i\n    os.makedirs(\"/tmp/outputs/output_path\", exist_ok=True)\n\n    #
+          Ki\u1ec3m tra s\u1ef1 t\u1ed3n t\u1ea1i c\u1ee7a file\n    pipeline_path
+          = \"/app/src/feature_engineer/020_prep_item2vec.py\"\n    print(f\"Looking
+          for pipeline at: {pipeline_path}\")\n    print(f\"Current working directory:
+          {os.getcwd()}\")\n    print(f\"Directory contents of /app/src/feature_engineer:
+          {os.listdir(''/app/src/feature_engineer'')}\")\n\n    if not os.path.exists(pipeline_path):\n        print(f\"Error:
+          File not found at {pipeline_path}\")\n        print(\"Current working directory:\",
+          os.getcwd())\n        print(\"Directory contents:\", os.listdir(\"/app/src/feature_engineer\"))\n        sys.exit(1)\n\n    #
+          Ch\u1ea1y 02_prep_item2vec.py b\u1eb1ng uv run\n    try:\n        print(f\"Running
+          command: uv run {pipeline_path}\")\n        subprocess.run([\"uv\", \"run\",
+          pipeline_path], check=True)\n    except subprocess.CalledProcessError as
+          e:\n        print(f\"Error running pipeline: {e}\")\n        print(\"Command
+          output:\", e.output if hasattr(e, ''output'') else \"No output\")\n        sys.exit(1)\n\n    return
+          (output_path,)\n\ndef _serialize_str(str_value: str) -> str:\n    if not
+          isinstance(str_value, str):\n        raise TypeError(''Value \"{}\" has
+          type \"{}\" instead of str.''.format(str(str_value), str(type(str_value))))\n    return
+          str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Prep
+          item2vec op'', description='''')\n_parser.add_argument(\"--output-path\",
+          dest=\"output_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\",
+          dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files
+          = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = prep_item2vec_op(**_parsed_args)\n\n_output_serializers
+          = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
+          OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
+          "image": "nthaiduong83/feature_pipeline:v6"}}, "inputs": [{"name": "output_path",
+          "type": "String"}], "name": "Prep item2vec op", "outputs": [{"name": "output_path",
+          "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"output_path":
+          "/data/papermill-output/prep-item2vec-output.ipynb"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+    volumes:
+    - name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7
+      persistentVolumeClaim: {claimName: data-pvc}
+  arguments:
+    parameters: []
+  serviceAccountName: pipeline-runner

@@ -1,0 +1,69 @@
+# Data configuration
+data_path: "/data"  # Path to data directory
+sequences_file: "train_item_sequence.jsonl"  # Training sequences file
+val_sequences_file: "val_item_sequence.jsonl"  # Validation sequences file
+idm_file: "idm.json"  # ID mapper file
+
+# Model configuration
+model:
+  type: "skipgram"  # Model type
+  embedding_dim:
+    choice: [64, 256]  # Options for embedding dimension
+
+# Training configuration
+training:
+  max_epochs: 15  # Maximum number of epochs
+  batch_size: 512  # Batch size for DataLoader
+  num_negative_samples: 3  # Number of negative samples for SkipGram
+  window_size: 3  # Context window size
+  num_workers: 2  # Number of DataLoader workers
+  learning_rate:
+    loguniform: [0.001, 0.01]  # Range for learning rate
+  l2_reg:
+    loguniform: [1e-6, 1e-3]  # Range for L2 regularization
+
+# Checkpoint and storage configuration
+checkpoint_dir: "/tmp/checkpoints"  # Directory for checkpoints
+final_checkpoint_dir: "/tmp/checkpoints/final_model"  # Directory for final model checkpoint
+storage_path: "/tmp/ray_checkpoints"  # Ray storage path for checkpoints
+
+# Experiment configuration
+experiment:
+  run_name: "item2vec"  # Name of the tuning run
+  dataset_version: "v1"  # Dataset version
+  tune_config:
+    metric: "val_loss"  # Metric to optimize
+    mode: "min"  # Optimization mode
+    num_samples: 3  # Number of trials for tuning
+
+# MLflow configuration
+mlflow:
+  tracking_uri: "http://mlflow-tracking-service.mlflow.svc.cluster.local:5000"  # MLflow tracking URI
+  s3_endpoint_url: "http://minio-service.mlflow.svc.cluster.local:9000"  # S3 endpoint URL
+  s3_ignore_tls: true  # Ignore TLS for S3
+  aws_access_key_id: "admin"  # AWS access key ID
+  aws_secret_access_key: "Password1234"  # AWS secret access key
+
+# Ray configuration
+ray:
+  address: "ray://localhost:10001"  # Ray cluster address
+  runtime_env:
+    working_dir: "."  # Working directory
+    py_modules:
+      - "../id_mapper.py"  # Python modules to include
+    env_vars:
+      PYTHONPATH: ".."  # Python path for imports
+
+# Trainer configuration
+trainer:
+  accelerator: "auto"  # Hardware accelerator
+  checkpoint:
+    filename: "best-checkpoint"  # Checkpoint filename
+    save_top_k: 1  # Number of checkpoints to keep
+    monitor: "val_loss"  # Metric to monitor for checkpointing
+    mode: "min"  # Checkpoint mode
+  early_stopping:
+    monitor: "val_loss"  # Metric to monitor for early stopping
+    patience: 2  # Number of epochs to wait for improvement
+    mode: "min"  # Early stopping mode
+    verbose: true  # Verbose output

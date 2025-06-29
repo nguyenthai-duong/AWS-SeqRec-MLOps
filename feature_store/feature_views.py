@@ -6,29 +6,28 @@ from feast.infra.offline_stores.contrib.spark_offline_store.spark_source import 
 
 
 user_feature_source = SparkSource(
-    path="s3a://datn-offline-store-bucket-917371e1/feature-store/user_rating_stats/",
+    path="s3a://recsys-ops/feature-store/user_rating_stats/",
     timestamp_field="event_timestamp",
     name="user_feature_source",
     file_format="parquet",
 )
 
 parent_feature_source = SparkSource(
-    path="s3a://datn-offline-store-bucket-917371e1/feature-store/parent_asin_rating_stats/",
+    path="s3a://recsys-ops/feature-store/parent_asin_rating_stats/",
     timestamp_field="event_timestamp",
     name="parent_feature_source",
     file_format="parquet",
 )
 
-# Thêm source cho train và val data
 train_source = SparkSource(
-    path="s3a://datn-offline-store-bucket-917371e1/feature-store/train/train.parquet/",
+    path="s3a://recsys-ops/feature-store/train/train.parquet/",
     timestamp_field="timestamp",
     name="train_source",
     file_format="parquet",
 )
 
 val_source = SparkSource(
-    path="s3a://datn-offline-store-bucket-917371e1/feature-store/val/val.parquet/",
+    path="s3a://recsys-ops/feature-store/val/val.parquet/",
     timestamp_field="timestamp",
     name="val_source",
     file_format="parquet",
@@ -71,7 +70,6 @@ parent_feature_view = FeatureView(
     online=True
 )
 
-# Thêm feature view cho train data
 train_feature_view = FeatureView(
     name="train_feature_view",
     entities=[user, parent_asin],
@@ -86,7 +84,6 @@ train_feature_view = FeatureView(
     online=False
 )
 
-# Thêm feature view cho val data
 val_feature_view = FeatureView(
     name="val_feature_view",
     entities=[user, parent_asin],

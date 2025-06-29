@@ -1,0 +1,21 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: copy-job
+  namespace: kubeflow-user-example-com
+spec:
+  template:
+    spec:
+      containers:
+      - name: busybox
+        image: busybox:latest
+        command: ["sh", "-c", "sleep 3600"]
+        volumeMounts:
+        - mountPath: "/mnt/data"
+          name: data-volume
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: data-pvc
+      restartPolicy: Never
+  backoffLimit: 2
