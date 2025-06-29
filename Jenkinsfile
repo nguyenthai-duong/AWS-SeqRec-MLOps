@@ -61,7 +61,7 @@ pipeline {
           kubectl create ns kserve || true
           kubectl get ns
 
-          apt-get update && apt-get install -y gettext
+          # apt-get update && apt-get install -y gettext
           envsubst < ./serving-cluster/inferenceservice-triton-gpu.yaml > ./serving-cluster/inferenceservice-triton-gpu.generated.yaml
 
           kubectl apply -f ./serving-cluster/inferenceservice-triton-gpu.generated.yaml --validate=false
