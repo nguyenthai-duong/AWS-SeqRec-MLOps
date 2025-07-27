@@ -1,0 +1,30 @@
+[2025-07-26T11:12:17.202+0000] {local_task_job_runner.py:120} INFO - ::group::Pre task execution logs
+[2025-07-26T11:12:17.224+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=non-requeueable deps ti=<TaskInstance: insert_next_row_dag.insert_row manual__2025-07-26T11:12:15.977029+00:00 [queued]>
+[2025-07-26T11:12:17.230+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=requeueable deps ti=<TaskInstance: insert_next_row_dag.insert_row manual__2025-07-26T11:12:15.977029+00:00 [queued]>
+[2025-07-26T11:12:17.230+0000] {taskinstance.py:2306} INFO - Starting attempt 1 of 1
+[2025-07-26T11:12:17.235+0000] {taskinstance.py:2330} INFO - Executing <Task(PythonOperator): insert_row> on 2025-07-26 11:12:15.977029+00:00
+[2025-07-26T11:12:17.239+0000] {logging_mixin.py:188} WARNING - /home/***/.local/lib/python3.12/site-packages/***/task/task_runner/standard_task_runner.py:62 DeprecationWarning: This process (pid=20380) is multi-threaded, use of fork() may lead to deadlocks in the child.
+[2025-07-26T11:12:17.240+0000] {standard_task_runner.py:64} INFO - Started process 20405 to run task
+[2025-07-26T11:12:17.240+0000] {standard_task_runner.py:90} INFO - Running: ['***', 'tasks', 'run', 'insert_next_row_dag', 'insert_row', 'manual__2025-07-26T11:12:15.977029+00:00', '--job-id', '24', '--raw', '--subdir', 'DAGS_FOLDER/simulate_realtime_insert.py', '--cfg-path', '/tmp/tmplo45yym2']
+[2025-07-26T11:12:17.241+0000] {standard_task_runner.py:91} INFO - Job 24: Subtask insert_row
+[2025-07-26T11:12:17.247+0000] {logging_mixin.py:188} WARNING - /home/***/.local/lib/python3.12/site-packages/***/settings.py:195 DeprecationWarning: The sql_alchemy_conn option in [core] has been moved to the sql_alchemy_conn option in [database] - the old setting has been used, but please update your config.
+[2025-07-26T11:12:17.263+0000] {task_command.py:426} INFO - Running <TaskInstance: insert_next_row_dag.insert_row manual__2025-07-26T11:12:15.977029+00:00 [running]> on host 2992d32593f0
+[2025-07-26T11:12:17.342+0000] {taskinstance.py:2648} INFO - Exporting env vars: AIRFLOW_CTX_DAG_OWNER='***' AIRFLOW_CTX_DAG_ID='insert_next_row_dag' AIRFLOW_CTX_TASK_ID='insert_row' AIRFLOW_CTX_EXECUTION_DATE='2025-07-26T11:12:15.977029+00:00' AIRFLOW_CTX_TRY_NUMBER='1' AIRFLOW_CTX_DAG_RUN_ID='manual__2025-07-26T11:12:15.977029+00:00'
+[2025-07-26T11:12:17.343+0000] {taskinstance.py:430} INFO - ::endgroup::
+[2025-07-26T11:12:17.375+0000] {logging_mixin.py:188} WARNING - /opt/***/dags/simulate_realtime_insert.py:35 SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+[2025-07-26T11:12:17.376+0000] {logging_mixin.py:188} INFO - Row 18 to insert:
+[2025-07-26T11:12:17.377+0000] {logging_mixin.py:188} INFO - | user_id                      | parent_asin   |   rating | timestamp                  | main_category   | title                                                                                       | description                                                                                                                                                                                                                              | categories                                                                                          |   price | source   |
+|:-----------------------------|:--------------|---------:|:---------------------------|:----------------|:--------------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------------|--------:|:---------|
+| AFVHCP5VBSNNHXSDCS2BVHT7G57A | B0B3M1ZZVK    |        2 | 2022-06-22 17:31:51.179000 | Toys & Games    | Intex Swim Center Inflatable Family Lounge Pool, 88in X 85in X 30in, for Ages 3+, Beige, 8" | {"90" X 86" X 31" H inflated. 13ga vinyl. Parents get comfy on the building bench while the little ones enjoy the water. 2 air chambers each with combo. Water Capacity: 156 gallons (12in of wall height) . Drain plug. Repair patch."} | {"Toys & Games", "Sports & Outdoor Play", "Pools & Water Toys", "Pool Rafts & Inflatable Ride-ons"} |   42.49 | val      |
+[2025-07-26T11:12:18.504+0000] {logging_mixin.py:188} INFO - Inserted row 18
+[2025-07-26T11:12:18.507+0000] {crypto.py:82} WARNING - empty cryptography key - values will not be stored encrypted.
+[2025-07-26T11:12:18.509+0000] {python.py:237} INFO - Done. Returned value was: None
+[2025-07-26T11:12:18.509+0000] {taskinstance.py:441} INFO - ::group::Post task execution logs
+[2025-07-26T11:12:18.514+0000] {taskinstance.py:1206} INFO - Marking task as SUCCESS. dag_id=insert_next_row_dag, task_id=insert_row, run_id=manual__2025-07-26T11:12:15.977029+00:00, execution_date=20250726T111215, start_date=20250726T111217, end_date=20250726T111218
+[2025-07-26T11:12:18.534+0000] {local_task_job_runner.py:243} INFO - Task exited with return code 0
+[2025-07-26T11:12:18.549+0000] {taskinstance.py:3503} INFO - 0 downstream tasks scheduled from follow-on schedule check
+[2025-07-26T11:12:18.550+0000] {local_task_job_runner.py:222} INFO - ::endgroup::

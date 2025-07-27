@@ -2,7 +2,7 @@ project: feature_store_recsys
 
 registry:
   registry_type: sql
-  path: postgresql+psycopg2://postgres:postgres@simulate-oltp-db.cdkwg6wyo7r8.ap-southeast-1.rds.amazonaws.com:5432/registry_feature_store
+  path: ${REGISTRY_PATH}
 
 provider: aws
 

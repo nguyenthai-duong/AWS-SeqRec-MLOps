@@ -2,7 +2,6 @@ from typing import Any, Dict
 
 import torch
 import torch.nn as nn
-
 from dataset import SkipGramDataset
 
 
@@ -38,10 +37,10 @@ class SkipGram(nn.Module):
     def get_item_embedding(self, item_idx: int) -> torch.Tensor:
         """
         Get the embedding vector for a specific item.
-        
+
         Args:
             item_idx (int): Index of the item
-            
+
         Returns:
             torch.Tensor: Embedding vector of the item
         """

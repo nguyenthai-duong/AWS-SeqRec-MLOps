@@ -1,0 +1,8 @@
+pandas==2.1.4
+numpy
+psycopg2-binary==2.9.10
+pyarrow
+fastparquet
+boto3
+dotenv
+sqlalchemy==1.4.54

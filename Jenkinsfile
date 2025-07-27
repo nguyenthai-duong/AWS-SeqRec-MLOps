@@ -3,8 +3,8 @@ pipeline {
 
   environment {
     CONDA_ENV = "datn"
-    AWS_ACCESS_KEY_ID="AKIA3TD2SE4D4EJQWMMS"
-    AWS_SECRET_ACCESS_KEY="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"
+    AWS_ACCESS_KEY_ID=""
+    AWS_SECRET_ACCESS_KEY=""
     AWS_DEFAULT_REGION = "ap-southeast-1"
     S3_MODEL_REPO = "s3://datn-onnx/"
     MLFLOW_S3_ENDPOINT_URL = "http://minio-service.mlflow.svc.cluster.local:9000"

@@ -1,8 +1,5 @@
-from typing import Any, Dict
-
 import torch
 import torch.nn as nn
-from tqdm.auto import tqdm
 
 
 class Ranker(nn.Module):
@@ -207,10 +204,8 @@ class Ranker(nn.Module):
         """
 
         self.eval()
-        device = users.device
         num_users = users.size(0)
         num_items = item_indices.size(0)
-        seq_len = item_sequences.shape[1]
 
         # --- PAD index (đề phòng mọi loại input lỗi) ---
         item_padding_idx = self.item_embedding.padding_idx
@@ -234,37 +229,44 @@ class Ranker(nn.Module):
             # Embed user + seq cho batch user
             user_emb = self.user_embedding(users)  # [N, d]
             item_seq_emb = self.item_embedding(item_sequences)  # [N, seq_len, d]
-            ts_bucket_emb = self.item_sequence_ts_bucket_embedding(item_ts_bucket_sequences)  # [N, seq_len, d]
+            ts_bucket_emb = self.item_sequence_ts_bucket_embedding(
+                item_ts_bucket_sequences
+            )  # [N, seq_len, d]
             seq_input = torch.cat([item_seq_emb, ts_bucket_emb], dim=-1)
             _, seq_hidden = self.gru(seq_input)
             seq_hidden = seq_hidden.squeeze(0)  # [N, d]
 
             user_seq_emb = torch.cat([seq_hidden, user_emb], dim=1)  # [N, 2d]
 
-            all_topk_items = []
-
             for i in range(0, num_items, batch_size):
                 idx = slice(i, min(i + batch_size, num_items))
-                items = item_indices[idx]                        # [b]
-                items_emb = self.item_embedding(items)           # [b, d]
-                items_feat = item_features[idx]                  # [b, feat_dim]
+                items = item_indices[idx]  # [b]
+                items_emb = self.item_embedding(items)  # [b, d]
+                items_feat = item_features[idx]  # [b, feat_dim]
                 item_feat_proj = self.item_feature_tower(items_feat)  # [b, d]
 
                 # Expand item cho từng user: [N, b, d]
                 items_emb_exp = items_emb.unsqueeze(0).expand(num_users, -1, -1)
-                item_feat_proj_exp = item_feat_proj.unsqueeze(0).expand(num_users, -1, -1)
-                user_seq_emb_exp = user_seq_emb.unsqueeze(1).expand(-1, items_emb.shape[0], -1)
+                item_feat_proj_exp = item_feat_proj.unsqueeze(0).expand(
+                    num_users, -1, -1
+                )
+                user_seq_emb_exp = user_seq_emb.unsqueeze(1).expand(
+                    -1, items_emb.shape[0], -1
+                )
 
                 # Cat [seq_hidden, user_emb, item_emb, item_feat_proj]: [N, b, 4d]
-                full_input = torch.cat([
-                    user_seq_emb_exp,
-                    items_emb_exp,
-                    item_feat_proj_exp,
-                ], dim=2)  # [N, b, 4d]
+                full_input = torch.cat(
+                    [
+                        user_seq_emb_exp,
+                        items_emb_exp,
+                        item_feat_proj_exp,
+                    ],
+                    dim=2,
+                )  # [N, b, 4d]
 
                 flat_input = full_input.view(-1, full_input.shape[2])  # [N*b, 4d]
-                out = self.fc_rating(flat_input)                       # [N*b, 1]
-                score = out.view(num_users, items_emb.shape[0])        # [N, b]
+                out = self.fc_rating(flat_input)  # [N*b, 1]
+                score = out.view(num_users, items_emb.shape[0])  # [N, b]
 
                 if i == 0:
                     all_scores = score
@@ -276,4 +278,3 @@ class Ranker(nn.Module):
             # map lại sang item_indices
             topk_items = item_indices[topk_indices]
             return topk_items  # shape [N, K]
-

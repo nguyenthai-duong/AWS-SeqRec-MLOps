@@ -1,16 +1,16 @@
 import os
+
 import lightning as L
+import mlflow
 import pandas as pd
 import torch
-import mlflow
-from ray import train
-from ray.train import Checkpoint
-from torch import nn
 from evidently.metric_preset import ClassificationPreset
 from evidently.pipeline.column_mapping import ColumnMapping
 from evidently.report import Report
-
 from model import SkipGram
+from ray import train
+from ray.train import Checkpoint
+from torch import nn
 
 
 class LitSkipGram(L.LightningModule):
@@ -37,7 +37,15 @@ class LitSkipGram(L.LightningModule):
         loss_fn = nn.BCELoss()
         loss = loss_fn(predictions, labels)
 
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        self.log(
+            "train_loss",
+            loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+            sync_dist=True,
+        )
         if train.get_context().get_world_size() > 1:
             train.report({"train_loss": loss.item()})
         return loss
@@ -51,7 +59,15 @@ class LitSkipGram(L.LightningModule):
         loss_fn = nn.BCELoss()
         loss = loss_fn(predictions, labels)
 
-        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        self.log(
+            "val_loss",
+            loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+            sync_dist=True,
+        )
         return {"val_loss": loss}
 
     def configure_optimizers(self):
@@ -71,12 +87,20 @@ class LitSkipGram(L.LightningModule):
     def on_validation_epoch_end(self):
         sch = self.lr_schedulers()
         if sch is not None:
-            self.log("learning_rate", sch.get_last_lr()[0], on_epoch=True, logger=True, sync_dist=True)
+            self.log(
+                "learning_rate",
+                sch.get_last_lr()[0],
+                on_epoch=True,
+                logger=True,
+                sync_dist=True,
+            )
 
         # Aggregate validation loss for Ray Train
         val_loss = self.trainer.callback_metrics.get("val_loss", None)
         if val_loss is not None and train.get_context().get_world_size() > 1:
-            checkpoint = Checkpoint.from_directory(self.trainer.checkpoint_callback.dirpath)
+            checkpoint = Checkpoint.from_directory(
+                self.trainer.checkpoint_callback.dirpath
+            )
             train.report({"val_loss": val_loss.item()}, checkpoint=checkpoint)
 
     def on_fit_end(self):
@@ -92,11 +116,13 @@ class LitSkipGram(L.LightningModule):
             context_items.extend(_context_items)
             labels.extend(_labels)
 
-        val_df = pd.DataFrame({
-            "target_items": target_items,
-            "context_items": context_items,
-            "labels": labels,
-        })
+        val_df = pd.DataFrame(
+            {
+                "target_items": target_items,
+                "context_items": context_items,
+                "labels": labels,
+            }
+        )
 
         target_items = torch.tensor(val_df["target_items"].values, device=self.device)
         context_items = torch.tensor(val_df["context_items"].values, device=self.device)
@@ -129,27 +155,47 @@ class LitSkipGram(L.LightningModule):
         if mlflow.active_run():
             try:
                 if not os.path.exists(evidently_report_fp):
-                    print(f"File {evidently_report_fp} không tồn tại, bỏ qua ghi log artifact.")
+                    print(
+                        f"File {evidently_report_fp} không tồn tại, bỏ qua ghi log artifact."
+                    )
                 else:
                     mlflow.log_artifact(evidently_report_fp)
                     print(f"Đã ghi log artifact: {evidently_report_fp}")
             except Exception as e:
                 print(f"Không thể ghi log artifact {evidently_report_fp}: {str(e)}")
-            
+
             try:
-                for metric_result in classification_performance_report.as_dict()["metrics"]:
+                for metric_result in classification_performance_report.as_dict()[
+                    "metrics"
+                ]:
                     if metric_result["metric"] == "ClassificationQualityMetric":
                         roc_auc = float(metric_result["result"]["current"]["roc_auc"])
                         mlflow.log_metric("val_roc_auc", roc_auc)
                         print(f"Đã ghi log val_roc_auc: {roc_auc}")
                     elif metric_result["metric"] == "ClassificationPRTable":
-                        columns = ["top_perc", "count", "prob", "tp", "fp", "precision", "recall"]
+                        columns = [
+                            "top_perc",
+                            "count",
+                            "prob",
+                            "tp",
+                            "fp",
+                            "precision",
+                            "recall",
+                        ]
                         table = metric_result["result"]["current"][1]
                         table_df = pd.DataFrame(table, columns=columns)
                         for _, row in table_df.iterrows():
                             prob = int(row["prob"] * 100)
-                            mlflow.log_metric("val_precision_at_prob", float(row["precision"]), step=prob)
-                            mlflow.log_metric("val_recall_at_prob", float(row["recall"]), step=prob)
-                            print(f"Đã ghi log tại prob {prob}: precision={float(row['precision'])}, recall={float(row['recall'])}")
+                            mlflow.log_metric(
+                                "val_precision_at_prob",
+                                float(row["precision"]),
+                                step=prob,
+                            )
+                            mlflow.log_metric(
+                                "val_recall_at_prob", float(row["recall"]), step=prob
+                            )
+                            print(
+                                f"Đã ghi log tại prob {prob}: precision={float(row['precision'])}, recall={float(row['recall'])}"
+                            )
             except Exception as e:
                 print(f"Không thể ghi log metrics phân loại vào MLflow: {str(e)}")

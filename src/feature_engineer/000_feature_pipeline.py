@@ -10,4 +10,6 @@ os.makedirs(output_dir, exist_ok=True)
 logger.info(f"{run_timestamp=}")
 logger.info(f"Notebook outputs will be saved to {output_dir}")
 
-pm.execute_notebook("001-features.ipynb", f"{output_dir}/001-features.ipynb",kernel_name="python3")
+pm.execute_notebook(
+    "001-features.ipynb", f"{output_dir}/001-features.ipynb", kernel_name="python3"
+)

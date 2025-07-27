@@ -17,3 +17,4 @@ src/model_ranking_sequence/main1.py
 src/model_ranking_sequence/trainer1.py
 configs/ranking_sequence1.yaml
 istio-1.17.2
+*.pem

@@ -1,0 +1,30 @@
+[2025-07-26T10:33:14.646+0000] {local_task_job_runner.py:120} INFO - ::group::Pre task execution logs
+[2025-07-26T10:33:14.670+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=non-requeueable deps ti=<TaskInstance: insert_next_row_dag.insert_row manual__2025-07-26T10:33:13.366806+00:00 [queued]>
+[2025-07-26T10:33:14.676+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=requeueable deps ti=<TaskInstance: insert_next_row_dag.insert_row manual__2025-07-26T10:33:13.366806+00:00 [queued]>
+[2025-07-26T10:33:14.677+0000] {taskinstance.py:2306} INFO - Starting attempt 1 of 1
+[2025-07-26T10:33:14.682+0000] {taskinstance.py:2330} INFO - Executing <Task(PythonOperator): insert_row> on 2025-07-26 10:33:13.366806+00:00
+[2025-07-26T10:33:14.686+0000] {logging_mixin.py:188} WARNING - /home/***/.local/lib/python3.12/site-packages/***/task/task_runner/standard_task_runner.py:62 DeprecationWarning: This process (pid=13516) is multi-threaded, use of fork() may lead to deadlocks in the child.
+[2025-07-26T10:33:14.687+0000] {standard_task_runner.py:64} INFO - Started process 13541 to run task
+[2025-07-26T10:33:14.687+0000] {standard_task_runner.py:90} INFO - Running: ['***', 'tasks', 'run', 'insert_next_row_dag', 'insert_row', 'manual__2025-07-26T10:33:13.366806+00:00', '--job-id', '11', '--raw', '--subdir', 'DAGS_FOLDER/simulate_realtime_insert.py', '--cfg-path', '/tmp/tmpiykoof6i']
+[2025-07-26T10:33:14.688+0000] {standard_task_runner.py:91} INFO - Job 11: Subtask insert_row
+[2025-07-26T10:33:14.696+0000] {logging_mixin.py:188} WARNING - /home/***/.local/lib/python3.12/site-packages/***/settings.py:195 DeprecationWarning: The sql_alchemy_conn option in [core] has been moved to the sql_alchemy_conn option in [database] - the old setting has been used, but please update your config.
+[2025-07-26T10:33:14.716+0000] {task_command.py:426} INFO - Running <TaskInstance: insert_next_row_dag.insert_row manual__2025-07-26T10:33:13.366806+00:00 [running]> on host 2992d32593f0
+[2025-07-26T10:33:14.826+0000] {taskinstance.py:2648} INFO - Exporting env vars: AIRFLOW_CTX_DAG_OWNER='***' AIRFLOW_CTX_DAG_ID='insert_next_row_dag' AIRFLOW_CTX_TASK_ID='insert_row' AIRFLOW_CTX_EXECUTION_DATE='2025-07-26T10:33:13.366806+00:00' AIRFLOW_CTX_TRY_NUMBER='1' AIRFLOW_CTX_DAG_RUN_ID='manual__2025-07-26T10:33:13.366806+00:00'
+[2025-07-26T10:33:14.827+0000] {taskinstance.py:430} INFO - ::endgroup::
+[2025-07-26T10:33:14.858+0000] {logging_mixin.py:188} WARNING - /opt/***/dags/simulate_realtime_insert.py:35 SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+[2025-07-26T10:33:14.858+0000] {logging_mixin.py:188} INFO - Row 5 to insert:
+[2025-07-26T10:33:14.859+0000] {logging_mixin.py:188} INFO - | user_id                      | parent_asin   |   rating | timestamp                  | main_category   | title                                                                                                                                                                                                   | description   | categories                                                                          |   price | source   |
+|:-----------------------------|:--------------|---------:|:---------------------------|:----------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------------|:------------------------------------------------------------------------------------|--------:|:---------|
+| AEIV6YPHTWIAKSX6SFLGMQQHECTA | B0BCQ6Z5QK    |        3 | 2022-06-16 18:40:25.948000 | Toys & Games    | BooTaa 4 Pack Airplane Toys, 17.5" Large Throwing Foam Plane, 2 Flight Mode, Foam Gliders, Flying Toys, Birthday Gifts for Boys Girls Kids 3 4 5 6 7 8 9 10 11 12 Year Old Boys,Outdoor Sport Game Toys | {}            | {"Toys & Games", "Novelty & Gag Toys", "Flying Toys", "Airplane Construction Kits"} |   19.99 | val      |
+[2025-07-26T10:33:16.017+0000] {logging_mixin.py:188} INFO - Inserted row 5
+[2025-07-26T10:33:16.029+0000] {crypto.py:82} WARNING - empty cryptography key - values will not be stored encrypted.
+[2025-07-26T10:33:16.035+0000] {python.py:237} INFO - Done. Returned value was: None
+[2025-07-26T10:33:16.036+0000] {taskinstance.py:441} INFO - ::group::Post task execution logs
+[2025-07-26T10:33:16.050+0000] {taskinstance.py:1206} INFO - Marking task as SUCCESS. dag_id=insert_next_row_dag, task_id=insert_row, run_id=manual__2025-07-26T10:33:13.366806+00:00, execution_date=20250726T103313, start_date=20250726T103314, end_date=20250726T103316
+[2025-07-26T10:33:16.103+0000] {local_task_job_runner.py:243} INFO - Task exited with return code 0
+[2025-07-26T10:33:16.136+0000] {taskinstance.py:3503} INFO - 0 downstream tasks scheduled from follow-on schedule check
+[2025-07-26T10:33:16.137+0000] {local_task_job_runner.py:222} INFO - ::endgroup::

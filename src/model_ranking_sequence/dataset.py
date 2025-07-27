@@ -1,6 +1,14 @@
+import json
+from collections import defaultdict
+from copy import deepcopy
+
 import numpy as np
 import torch
-from torch.utils.data import Dataset
+import torch.nn as nn
+from loguru import logger
+from torch.distributed import get_rank, get_world_size
+from torch.utils.data import Dataset, IterableDataset, get_worker_info
+from tqdm.auto import tqdm
 
 
 class UserItemRatingDFDataset(Dataset):
@@ -66,18 +74,6 @@ class UserItemBinaryDFDataset(UserItemRatingDFDataset):
         self.rating_col = rating_col
         self.timestamp_col = timestamp_col
         self.item_feature = item_feature
-
-import json
-from collections import defaultdict
-from copy import deepcopy
-
-import numpy as np
-import torch
-import torch.nn as nn
-from loguru import logger
-from torch.distributed import get_rank, get_world_size
-from torch.utils.data import IterableDataset, get_worker_info
-from tqdm.auto import tqdm
 
 
 class SkipGramDataset(IterableDataset):

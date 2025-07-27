@@ -1,30 +1,25 @@
 import os
+import sys
 import warnings
 
 import lightning as L
+import numpy as np
 import pandas as pd
 import torch
 from evidently.metric_preset import ClassificationPreset
-from evidently.metrics import (
-    FBetaTopKMetric,
-    NDCGKMetric,
-    PersonalizationMetric
-)
+from evidently.metrics import FBetaTopKMetric, NDCGKMetric, PersonalizationMetric
 from evidently.pipeline.column_mapping import ColumnMapping
 from evidently.report import Report
 from loguru import logger
+from model import Ranker
 from pydantic import BaseModel
 from torch import nn
 from torchmetrics import AUROC
-
-from eval.utils import create_label_df, create_rec_df, merge_recs_with_target
-
 from viz import color_scheme
-import numpy as np
-from model import Ranker
-import sys
+
 sys.path.insert(0, "..")
 from id_mapper import IDMapper
+
 warnings.filterwarnings(
     action="ignore",
     category=FutureWarning,
@@ -150,8 +145,8 @@ class LitRanker(L.LightningModule):
     def on_train_epoch_end(self):
         self.log_weight_norms(stage="train")
 
-    def on_validation_epoch_end(self):
-        self.log_weight_norms(stage="val")
+    # def on_validation_epoch_end(self):
+    #     self.log_weight_norms(stage="val")
 
     def configure_optimizers(self):
         # Create the optimizer
@@ -309,7 +304,11 @@ class LitRanker(L.LightningModule):
         idm = self.idm
 
         val_loaders = self.trainer.val_dataloaders
-        ds = val_loaders[0].dataset if isinstance(val_loaders, list) else val_loaders.dataset
+        ds = (
+            val_loaders[0].dataset
+            if isinstance(val_loaders, list)
+            else val_loaders.dataset
+        )
         df = ds.df.copy()
 
         # ========== MAP ID TO INDEX (siêu nhanh, không dùng apply) ==========
@@ -331,14 +330,18 @@ class LitRanker(L.LightningModule):
         if len(all_users) > MAX_USERS:
             sel_idx = np.random.choice(len(all_users), MAX_USERS, replace=False)
             to_rec = to_rec.iloc[sel_idx]
-            logger.warning(f"Too many users ({len(all_users)}), sample {MAX_USERS} users for fast evaluation!")
+            logger.warning(
+                f"Too many users ({len(all_users)}), sample {MAX_USERS} users for fast evaluation!"
+            )
 
         user_ids = to_rec[uc].values
         item_sequences = np.stack(to_rec["item_sequence"].values)
         # ========== BUCKET ==========
         item_ts_bucket_col = [c for c in to_rec.columns if "ts_bucket" in c.lower()]
         if not item_ts_bucket_col:
-            raise ValueError("No item sequence timestamp bucket column found in dataset")
+            raise ValueError(
+                "No item sequence timestamp bucket column found in dataset"
+            )
         item_ts_bucket_col = item_ts_bucket_col[0]
         item_ts_buckets = np.stack(to_rec[item_ts_bucket_col].values)
 
@@ -353,9 +356,12 @@ class LitRanker(L.LightningModule):
         recs = []
         n_users = len(user_ids)
         for i in range(0, n_users, batch_size):
-            u_batch = torch.tensor(user_ids[i:i+batch_size], device=device)
-            seq_batch = torch.tensor(item_sequences[i:i+batch_size], device=device)
-            bucket_batch = torch.tensor(item_ts_buckets[i:i+batch_size], device=device)
+            u_batch = torch.tensor(user_ids[i : i + batch_size], device=device)
+            seq_batch = torch.tensor(item_sequences[i : i + batch_size], device=device)
+            bucket_batch = torch.tensor(
+                item_ts_buckets[i : i + batch_size], device=device
+            )
+
             with torch.no_grad():
                 rec_batch = self.model.recommend(
                     u_batch,
@@ -364,7 +370,7 @@ class LitRanker(L.LightningModule):
                     item_features,
                     item_indices,
                     k=K,
-                    batch_size=K
+                    batch_size=K,
                 )
             if isinstance(rec_batch, torch.Tensor):
                 rec_batch = rec_batch.cpu().numpy()
@@ -373,39 +379,44 @@ class LitRanker(L.LightningModule):
 
         # Personalization (1 - jaccard similarity giữa các user)
         def personalization_at_k(arr):
-            if len(arr) < 2: return 1.0
+            if len(arr) < 2:
+                return 1.0
             total = 0
             count = 0
             for i in range(len(arr)):
-                for j in range(i+1, len(arr)):
+                for j in range(i + 1, len(arr)):
                     a, b = set(arr[i]), set(arr[j])
-                    if not a and not b: continue
+                    if not a and not b:
+                        continue
                     total += len(a & b) / len(a | b)
                     count += 1
             return 1 - (total / count) if count > 0 else 1.0
+
         personalization = personalization_at_k(recs)
 
         # ========== LƯU DATAFRAME CHO EVIDENTLY ==========
-        rec_df = pd.DataFrame({
-            uc: user_ids.repeat(K),
-            ic: recs.flatten(),
-            "rec_ranking": np.tile(np.arange(1, K+1), len(user_ids))
-        })
+        rec_df = pd.DataFrame(
+            {
+                uc: user_ids.repeat(K),
+                ic: recs.flatten(),
+                "rec_ranking": np.tile(np.arange(1, K + 1), len(user_ids)),
+            }
+        )
         # label_df cần cho evidently (item đã thực sự được user interact)
         label_df = df[[uc, ic, rc, ts]].copy()
         label_df = label_df.groupby([uc, ic], as_index=False).first()
 
-        eval_df = pd.merge(
-            rec_df, label_df, on=[uc, ic], how="left"
-        )
+        eval_df = pd.merge(rec_df, label_df, on=[uc, ic], how="left")
         eval_df[rc] = eval_df[rc].fillna(0.0)
         self.eval_ranking_df = eval_df
 
         # ========== TẠO EVIDENTLY REPORT (KHÔNG CÓ precision@K, recall@K) ==========
         col_map = ColumnMapping(
             recommendations_type="rank",
-            target=rc, prediction="rec_ranking",
-            item_id=ic, user_id=uc
+            target=rc,
+            prediction="rec_ranking",
+            item_id=ic,
+            user_id=uc,
         )
         report = Report(
             metrics=[
@@ -433,10 +444,14 @@ class LitRanker(L.LightningModule):
                 mt = m["metric"]
                 mt_clean = mt.replace("@", "_at_")
                 if mt == "PersonalizationMetric":
-                    cli.log_metric(rid, f"val_{mt_clean}", float(m["result"]["current_value"]))
+                    cli.log_metric(
+                        rid, f"val_{mt_clean}", float(m["result"]["current_value"])
+                    )
                 else:
                     for step, val in m["result"]["current"].items():
-                        cli.log_metric(rid, f"val_{mt_clean}_as_step", float(val), step=int(step))
+                        cli.log_metric(
+                            rid, f"val_{mt_clean}_as_step", float(val), step=int(step)
+                        )
 
         # Nếu muốn log thêm các threshold-based metrics (precision/recall theo threshold):
         # Đoạn này tuỳ vào cách bạn implement và dùng threshold cho prediction

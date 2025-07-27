@@ -12,7 +12,7 @@ model:
 
 # Training configuration
 training:
-  max_epochs: 15  # Maximum number of epochs
+  max_epochs: 1  # Maximum number of epochs
   batch_size: 512  # Batch size for DataLoader
   num_negative_samples: 3  # Number of negative samples for SkipGram
   window_size: 3  # Context window size
@@ -34,7 +34,7 @@ experiment:
   tune_config:
     metric: "val_loss"  # Metric to optimize
     mode: "min"  # Optimization mode
-    num_samples: 3  # Number of trials for tuning
+    num_samples: 1  # Number of trials for tuning
 
 # MLflow configuration
 mlflow:

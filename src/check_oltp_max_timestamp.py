@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 schema = "public"
 table_name = "reviews"
 # Create a connection string and engine outside the function
-connection_string = "postgresql://postgres:postgres@recsys-ops.cdkwg6wyo7r8.ap-southeast-1.rds.amazonaws.com:5432/raw_data"
+connection_string = "postgresql://postgres:postgres@simulate-oltp-db.cdkwg6wyo7r8.ap-southeast-1.rds.amazonaws.com:5432/raw_data"
 engine = create_engine(connection_string)
 
 

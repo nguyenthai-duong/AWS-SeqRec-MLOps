@@ -1,0 +1,23 @@
+[2025-07-26T09:14:59.292+0000] {local_task_job_runner.py:120} INFO - ::group::Pre task execution logs
+[2025-07-26T09:14:59.303+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=non-requeueable deps ti=<TaskInstance: reset_index_and_pull_holdout.reset_and_pull manual__2025-07-26T09:14:58.126565+00:00 [queued]>
+[2025-07-26T09:14:59.306+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=requeueable deps ti=<TaskInstance: reset_index_and_pull_holdout.reset_and_pull manual__2025-07-26T09:14:58.126565+00:00 [queued]>
+[2025-07-26T09:14:59.306+0000] {taskinstance.py:2306} INFO - Starting attempt 1 of 1
+[2025-07-26T09:14:59.310+0000] {taskinstance.py:2330} INFO - Executing <Task(PythonOperator): reset_and_pull> on 2025-07-26 09:14:58.126565+00:00
+[2025-07-26T09:14:59.313+0000] {logging_mixin.py:188} WARNING - /home/***/.local/lib/python3.12/site-packages/***/task/task_runner/standard_task_runner.py:62 DeprecationWarning: This process (pid=499) is multi-threaded, use of fork() may lead to deadlocks in the child.
+[2025-07-26T09:14:59.314+0000] {standard_task_runner.py:64} INFO - Started process 500 to run task
+[2025-07-26T09:14:59.314+0000] {standard_task_runner.py:90} INFO - Running: ['***', 'tasks', 'run', 'reset_index_and_pull_holdout', 'reset_and_pull', 'manual__2025-07-26T09:14:58.126565+00:00', '--job-id', '3', '--raw', '--subdir', 'DAGS_FOLDER/reset_dag.py', '--cfg-path', '/tmp/tmp9z8i48x3']
+[2025-07-26T09:14:59.314+0000] {standard_task_runner.py:91} INFO - Job 3: Subtask reset_and_pull
+[2025-07-26T09:14:59.321+0000] {logging_mixin.py:188} WARNING - /home/***/.local/lib/python3.12/site-packages/***/settings.py:195 DeprecationWarning: The sql_alchemy_conn option in [core] has been moved to the sql_alchemy_conn option in [database] - the old setting has been used, but please update your config.
+[2025-07-26T09:14:59.352+0000] {task_command.py:426} INFO - Running <TaskInstance: reset_index_and_pull_holdout.reset_and_pull manual__2025-07-26T09:14:58.126565+00:00 [running]> on host 2992d32593f0
+[2025-07-26T09:14:59.406+0000] {taskinstance.py:2648} INFO - Exporting env vars: AIRFLOW_CTX_DAG_OWNER='***' AIRFLOW_CTX_DAG_ID='reset_index_and_pull_holdout' AIRFLOW_CTX_TASK_ID='reset_and_pull' AIRFLOW_CTX_EXECUTION_DATE='2025-07-26T09:14:58.126565+00:00' AIRFLOW_CTX_TRY_NUMBER='1' AIRFLOW_CTX_DAG_RUN_ID='manual__2025-07-26T09:14:58.126565+00:00'
+[2025-07-26T09:14:59.407+0000] {taskinstance.py:430} INFO - ::endgroup::
+[2025-07-26T09:14:59.430+0000] {crypto.py:82} WARNING - empty cryptography key - values will not be stored encrypted.
+[2025-07-26T09:14:59.432+0000] {logging_mixin.py:188} INFO - current_index reset to 0
+[2025-07-26T09:14:59.437+0000] {logging_mixin.py:188} INFO - Will pull s3://recsys-ops/holdout.parquet -> /opt/***/data/holdout.parquet
+[2025-07-26T09:15:00.010+0000] {logging_mixin.py:188} INFO - ✅ Đã tải xong holdout.parquet từ S3!
+[2025-07-26T09:15:00.012+0000] {python.py:237} INFO - Done. Returned value was: None
+[2025-07-26T09:15:00.013+0000] {taskinstance.py:441} INFO - ::group::Post task execution logs
+[2025-07-26T09:15:00.029+0000] {taskinstance.py:1206} INFO - Marking task as SUCCESS. dag_id=reset_index_and_pull_holdout, task_id=reset_and_pull, run_id=manual__2025-07-26T09:14:58.126565+00:00, execution_date=20250726T091458, start_date=20250726T091459, end_date=20250726T091500
+[2025-07-26T09:15:00.088+0000] {local_task_job_runner.py:243} INFO - Task exited with return code 0
+[2025-07-26T09:15:00.117+0000] {taskinstance.py:3503} INFO - 0 downstream tasks scheduled from follow-on schedule check
+[2025-07-26T09:15:00.118+0000] {local_task_job_runner.py:222} INFO - ::endgroup::

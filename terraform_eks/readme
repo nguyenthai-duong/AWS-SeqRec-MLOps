@@ -1,0 +1,79 @@
+minikube start --kubernetes-version=v1.29.0
+
+kubectl delete ns kserve istio-system knative-serving cert-manager
+
+
+chmod +x deploy_kserve.sh
+./deploy_kserve.sh
+
+minikube image load nthaiduong83/tritonserver-datn:v2
+
+minikube image load nthaiduong83/api-gateway:v3
+
+minikube image load nthaiduong83/feature-store-api:v2
+
+
+kind create cluster --name datn-serving --config - <<EOF
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+nodes:
+- role: control-plane
+  image: kindest/node:v1.26.3
+  extraMounts:
+    - hostPath: /dev/null
+      containerPath: /var/run/nvidia-container-devices/all
+EOF
+
+helm repo add nvidia https://helm.ngc.nvidia.com/nvidia || true
+helm repo update
+helm install --wait --generate-name \
+     -n gpu-operator --create-namespace \
+     nvidia/gpu-operator --set driver.enabled=false
+
+
+
+kind load docker-image tritonserver-datn:v4 --name datn-serving
+kind load docker-image nthaiduong83/api-gateway:v5 --name datn-serving
+kind load docker-image nthaiduong83/feature-store-api:v2 --name datn-serving
+
+./deploy_kserve.sh
+
+
+export S3_MODEL_REPO="s3://datn-onnx-gpu/"
+aws s3 sync ./sequence_modeling/model_repository_gpu/ ${S3_MODEL_REPO}
+touch .keep
+aws s3 cp .keep ${S3_MODEL_REPO}ensemble/1/.keep
+
+kubectl apply -f inferenceservice-triton-gpu.yaml
+kubectl delete -f inferenceservice-triton-gpu.yaml
+
+
+kubectl create ns cache
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo update
+helm install redis bitnami/redis \
+  --version 21.0.2 \
+  --namespace cache \
+  --set-string auth.password=123456 \
+  --set master.service.type=LoadBalancer
+
+kubectl port-forward svc/redis-master 6379:6379 -n cache
+
+
+cd feature_store_api_gateway
+kubectl create ns api-feature-store
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+kubectl port-forward svc/feature-store-api-service 8005:80 -n api-feature-store
+
+cd api_gateway
+kubectl create ns api-gateway
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+kubectl port-forward svc/api-gateway-service 8009:80 -n api-gateway
+
+kubectl patch svc api-gateway-service -n api-gateway -p '{"spec": {"type": "NodePort"}}'
+
+NODE_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' datn-serving-control-plane)
+echo $NODE_IP        # Ví dụ in ra: 172.20.0.3
+curl "http://$NODE_IP:30008/infer?user_id=AFI4TKPAEMA6VBRHQ25MUXLHEIBA"

@@ -1,6 +1,8 @@
-import pandas as pd
-import sys
 import os
+import sys
+
+import pandas as pd
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from id_mapper import IDMapper
 
@@ -39,7 +41,7 @@ def create_rec_df(df, idm: IDMapper, user_col="user_id", item_col="parent_asin")
             item_col: lambda df: df["recommendation"].apply(
                 lambda item_indice: idm.get_item_id(item_indice)
             ),
-        }
+        },
     )
 
 

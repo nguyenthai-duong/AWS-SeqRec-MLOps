@@ -1,3 +1,5 @@
+import os
+import sys
 from typing import Dict, List
 
 import numpy as np
@@ -5,8 +7,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import sys
-import os
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from viz import blueq_colors
 
