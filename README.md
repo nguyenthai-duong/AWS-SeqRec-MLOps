@@ -308,6 +308,9 @@ cd feature_store
 export $(grep -v '^#' ../.env | xargs)
 uv run feast apply
 uv run feast materialize 2010-01-01T00:00:00 "$MATERIALIZE_CHECKPOINT_TIME"
+```
+#### Deploy feature store api in cluster serving
+```bash
 docker build -t nthaiduong83/feature-store-api:v3 -f feature_store_api.Dockerfile .
 docker push nthaiduong83/feature-store-api:v3
 kubectl create ns api-feature-store
@@ -354,28 +357,35 @@ kubectl delete pod pvc-checker --force
 
 *Build and load images:*
 ```bash
-docker build -f src/feature_engineer/feature_pipeline.Dockerfile -t nthaiduong83/feature_pipeline:v2 .
-kind load docker-image nthaiduong83/feature_pipeline:v6 --name datn-training1
 kubectl create secret generic aws-credentials --from-env-file=.env -n kubeflow-user-example-com
-docker build -t kubeflow-pipeline:v3 .
-docker run --network host --rm -it kubeflow-pipeline:v3 bash
-cd src/model_item2vec/
-uv run main.py
-kind load docker-image kubeflow-pipeline:v3 --name datn-training1
+docker build -t kubeflow-pipeline:v4 .
+kind load docker-image kubeflow-pipeline:v4 --name datn-training1
 cd src/kfp_pipeline
 uv run run_pipeline.py
 ```
+Tạo pipeline, experiment, upload file feature_pipeline.yaml lên và run
+![Kubeflow pipeline](images/setup/kfp.png)
+
 
 ---
 
-## 🗃️ Offline Caching with Redis & Qdrant
+## 🗃️ Offline Caching with Redis & Qdrant / S3 vector
 
-### 1. Deploy Qdrant
+### 1.1 Deploy Qdrant
 
 ```bash
 helm install qdrant ./qdrant --namespace kubeflow-user-example-com
 kubectl port-forward svc/qdrant 6333:6333 -n kubeflow-user-example-com
 ```
+
+### 1.2 Vector Index
+
+- Create S3 bucket: `recsys-ops-s3-vector`
+- In AWS S3 console, create vector index:
+  - Name: `item2vec-index`
+  - Dimensions: *e.g.,* 1024
+  - Distance metric: cosine similarity
+  - Metadata: filterable (category, date), non-filterable (description)
 
 ### 2. Expose MLflow & MinIO (Training Cluster)
 
@@ -429,19 +439,46 @@ docker info | grep -i runtime
 ---
 
 ### Deploy KServe & Triton
+#### Upload triton repo
+```bash
+aws s3 rm s3://recsys-triton-repo/ --recursive || true
+aws s3 sync /home/duong/Documents/datn/sequence_modeling/model_repository/ s3://ecsys-triton-repo/
+touch .keep
+aws s3 cp .keep s3://ecsys-triton-repo/ensemble/1/.keep
+```
 
+#### Install kserve
 ```bash
 kubectx kind-datn-serving
 cd serving-cluster
 ./deploy_kserve.sh
 docker build -t tritonserver-datn:v4 . -f Dockerfile.triton
-docker run --gpus=1 --rm -v /home/duong/Documents/datn1/src/model_ranking_sequence/model_repository:/models -p8008:8000 -p8001:8001 -p8002:8002 tritonserver-datn:v4 --model-repository=/models --log-verbose=2
 kind load docker-image tritonserver-datn:v4 --name datn-serving
+kubectl create secret generic aws-credentials --from-env-file=../../.env --namespace=kserve
 ```
+
 
 ---
 
+
+
+
+
+
+## Lấy credential k8s cluster
+kind get kubeconfig --name datn-cluster > kind_kubeconfig.yaml
+
 ### Jenkins Pipeline for CI/CD
+Cấu hình AWS Credentials trong Jenkins
+Vào Jenkins > Manage Jenkins > Manage Plugins, đảm bảo đã cài AWS Credentials Plugin.
+Vào Manage Jenkins > Manage Credentials:
+Thêm một Credential mới:
+Kind: AWS Credentials.
+Scope: Global.
+ID: aws-credentials.
+Access Key ID: Nhập giá trị AWS_ACCESS_KEY_ID.
+Secret Access Key: Nhập giá trị AWS_SECRET_ACCESS_KEY.
+Lưu lại.
 
 ```bash
 kind get kubeconfig --name datn-serving --internal > kubeconfig-serving.yaml
@@ -481,13 +518,6 @@ pip install -r requirements.txt
 
 ---
 
-## 🧬 S3 Vector Index
 
-- Create S3 bucket: `recsys-ops-s3-vector`
-- In AWS S3 console, create vector index:
-  - Name: `item2vec-index`
-  - Dimensions: *e.g.,* 1024
-  - Distance metric: cosine similarity
-  - Metadata: filterable (category, date), non-filterable (description)
 
 ---

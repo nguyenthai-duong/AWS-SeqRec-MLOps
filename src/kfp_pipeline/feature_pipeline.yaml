@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: feature-engineering-pipeline-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.4.0, pipelines.kubeflow.org/pipeline_compilation_time: '2025-07-27T10:19:20.660068',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.4.0, pipelines.kubeflow.org/pipeline_compilation_time: '2025-07-28T21:39:07.420262',
     pipelines.kubeflow.org/pipeline_spec: '{"description": "Pipeline for running feature
       engineering, negative sampling and item2vec preparation", "name": "Feature Engineering
       Pipeline"}'}
@@ -74,7 +74,7 @@ spec:
       - name: POSTGRES_URI_REGISTRY
         valueFrom:
           secretKeyRef: {key: POSTGRES_URI_REGISTRY, name: aws-credentials}
-      image: kubeflow-pipeline:v3
+      image: kubeflow-pipeline:v5
       resources:
         requests: {memory: 2Gi}
       volumeMounts:
@@ -119,10 +119,10 @@ spec:
           = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = feature_engineering_op(**_parsed_args)\n\n_output_serializers
           = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
           OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
-          "image": "kubeflow-pipeline:v3"}}, "inputs": [{"name": "output_path", "type":
+          "image": "kubeflow-pipeline:v5"}}, "inputs": [{"name": "output_path", "type":
           "String"}], "name": "Feature engineering op", "outputs": [{"name": "output_path",
           "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"output_path":
-          "/data/papermill-output/feature-output.ipynb"}'}
+          "/data/papermill-output/feature-output.ipynb"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
     volumes:
     - name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7
       persistentVolumeClaim: {claimName: data-pvc}
@@ -203,7 +203,7 @@ spec:
       - name: POSTGRES_URI_REGISTRY
         valueFrom:
           secretKeyRef: {key: POSTGRES_URI_REGISTRY, name: aws-credentials}
-      image: kubeflow-pipeline:v3
+      image: kubeflow-pipeline:v5
       resources:
         requests: {memory: 2Gi}
       volumeMounts:
@@ -246,10 +246,10 @@ spec:
           = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = negative_sampling_op(**_parsed_args)\n\n_output_serializers
           = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
           OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
-          "image": "kubeflow-pipeline:v3"}}, "inputs": [{"name": "output_path", "type":
+          "image": "kubeflow-pipeline:v5"}}, "inputs": [{"name": "output_path", "type":
           "String"}], "name": "Negative sampling op", "outputs": [{"name": "output_path",
           "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"output_path":
-          "/data/papermill-output/negative-sampling-output.ipynb"}'}
+          "/data/papermill-output/negative-sampling-output.ipynb"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
     volumes:
     - name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7
       persistentVolumeClaim: {claimName: data-pvc}
@@ -301,7 +301,7 @@ spec:
         \        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
       env:
       - {name: PVC_PATH, value: /data}
-      image: kubeflow-pipeline:v3
+      image: kubeflow-pipeline:v5
       resources:
         requests: {memory: 2Gi}
       volumeMounts:
@@ -346,10 +346,10 @@ spec:
           = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = prep_item2vec_op(**_parsed_args)\n\n_output_serializers
           = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
           OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
-          "image": "kubeflow-pipeline:v3"}}, "inputs": [{"name": "output_path", "type":
+          "image": "kubeflow-pipeline:v5"}}, "inputs": [{"name": "output_path", "type":
           "String"}], "name": "Prep item2vec op", "outputs": [{"name": "output_path",
           "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"output_path":
-          "/data/papermill-output/prep-item2vec-output.ipynb"}'}
+          "/data/papermill-output/prep-item2vec-output.ipynb"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
     volumes:
     - name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7
       persistentVolumeClaim: {claimName: data-pvc}
@@ -402,7 +402,7 @@ spec:
         \        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
       env:
       - {name: PVC_PATH, value: /data}
-      image: kubeflow-pipeline:v3
+      image: kubeflow-pipeline:v5
       resources:
         requests: {memory: 2Gi}
       volumeMounts:
@@ -447,10 +447,10 @@ spec:
           = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = train_item2vec_op(**_parsed_args)\n\n_output_serializers
           = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
           OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
-          "image": "kubeflow-pipeline:v3"}}, "inputs": [{"name": "output_path", "type":
+          "image": "kubeflow-pipeline:v5"}}, "inputs": [{"name": "output_path", "type":
           "String"}], "name": "Train item2vec op", "outputs": [{"name": "output_path",
           "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"output_path":
-          "/data/papermill-output/train-item2vec-output"}'}
+          "/data/papermill-output/train-item2vec-output"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
     volumes:
     - name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7
       persistentVolumeClaim: {claimName: data-pvc}
@@ -504,7 +504,7 @@ spec:
         \        f.write(_output_serializers[idx](_outputs[idx]))\n"
       env:
       - {name: PVC_PATH, value: /data}
-      image: kubeflow-pipeline:v3
+      image: kubeflow-pipeline:v5
       resources:
         requests: {memory: 2Gi}
       volumeMounts:
@@ -550,7 +550,7 @@ spec:
           = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = train_ranking_sequence_op(**_parsed_args)\n\n_output_serializers
           = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
           OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
-          "image": "kubeflow-pipeline:v3"}}, "inputs": [{"name": "output_path", "type":
+          "image": "kubeflow-pipeline:v5"}}, "inputs": [{"name": "output_path", "type":
           "String"}], "name": "Train ranking sequence op", "outputs": [{"name": "output_path",
           "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"output_path":
           "/data/papermill-output/train-ranking_sequence-output"}', pipelines.kubeflow.org/max_cache_staleness: P0D}

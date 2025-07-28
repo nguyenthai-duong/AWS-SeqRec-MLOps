@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Best practice script: Convert PyTorch model to ONNX with ensemble preprocessing for Triton deployment
-Supports single-item testing with corrected id_mapper to fix batch size mismatch
-"""
 import logging
 import os
 import shutil
@@ -74,9 +68,9 @@ def test_s3_connection():
     )
     try:
         buckets = s3.list_buckets()
-        logger.info("✅ Buckets: %s", [b["Name"] for b in buckets["Buckets"]])
+        logger.info("Buckets: %s", [b["Name"] for b in buckets["Buckets"]])
     except Exception as e:
-        logger.error("❌ Error connecting to MinIO: %s", e)
+        logger.error("Error connecting to MinIO: %s", e)
         raise
 
 
@@ -130,7 +124,7 @@ def find_champion_version(model_name: str) -> str:
 
 def validate_pipeline_feature_size(pipeline, expected_size: int = 416) -> int:
     """Validate the feature size output by the item metadata pipeline."""
-    logger.info("⏳ Validating item metadata pipeline feature size...")
+    logger.info("Validating item metadata pipeline feature size...")
     dummy_data = pd.DataFrame(
         {
             "parent_asin": ["B00MVV114A"],
@@ -166,9 +160,9 @@ def load_model_and_artifacts(model_name: str):
     try:
         model = mlflow.pytorch.load_model(model_uri)
         model.eval()
-        logger.info("✅ Model loaded successfully")
+        logger.info("Model loaded successfully")
     except Exception as e:
-        logger.error("❌ Error loading model: %s", e)
+        logger.error("Error loading model: %s", e)
         raise
 
     model_version = client.get_model_version(model_name, version)
@@ -197,9 +191,9 @@ def load_model_and_artifacts(model_name: str):
             idm = dill.load(f)
         if idm is None or not hasattr(idm, "get_user_index"):
             raise ValueError("Invalid IDMapper loaded")
-        logger.info("✅ IDMapper loaded and copied to %s", id_mapper_dir)
+        logger.info("IDMapper loaded and copied to %s", id_mapper_dir)
     except Exception as e:
-        logger.error("❌ Failed to load IDMapper: %s", e)
+        logger.error("Failed to load IDMapper: %s", e)
         raise
 
     # Download and copy item_metadata_pipeline
@@ -220,10 +214,10 @@ def load_model_and_artifacts(model_name: str):
         if item_pipeline is None:
             raise ValueError("Invalid item metadata pipeline loaded")
         logger.info(
-            "✅ Item metadata pipeline loaded and copied to %s", item_pipeline_dir
+            "Item metadata pipeline loaded and copied to %s", item_pipeline_dir
         )
     except Exception as e:
-        logger.error("❌ Failed to load item metadata pipeline: %s", e)
+        logger.error("Failed to load item metadata pipeline: %s", e)
         raise
 
     # Compute FEATURE_SIZE dynamically
@@ -334,7 +328,7 @@ instance_group [ {{ kind: KIND_GPU, count: 4 }} ]
     ranker_config_path = os.path.join(ranker_dir, "config.pbtxt")
     with open(ranker_config_path, "w", encoding="utf-8") as f:
         f.write(ranker_config)
-    logger.info("✅ Ranker config created at %s", ranker_config_path)
+    logger.info("Ranker config created at %s", ranker_config_path)
 
     # Write IDMapper model script
     id_mapper_script = """
@@ -639,7 +633,7 @@ ensemble_scheduling {{
     ensemble_config_path = os.path.join(ensemble_dir, "config.pbtxt")
     with open(ensemble_config_path, "w", encoding="utf-8") as f:
         f.write(ensemble_config)
-    logger.info("✅ Ensemble config created at %s", ensemble_config_path)
+    logger.info("Ensemble config created at %s", ensemble_config_path)
 
     # === Copy id_mapper.py vào id_mapper/1/ ===
     IDM_SOURCE = os.path.abspath(
@@ -647,7 +641,7 @@ ensemble_scheduling {{
     )
     IDM_DEST = os.path.join(repo_path, "id_mapper", "1", "id_mapper.py")
     shutil.copy2(IDM_SOURCE, IDM_DEST)
-    logger.info("✅ Copied id_mapper.py to %s", IDM_DEST)
+    logger.info("Copied id_mapper.py to %s", IDM_DEST)
 
     # === Copy thư mục features vào item_pipeline/1/features/ ===
     FEATURES_SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), "features"))
@@ -655,9 +649,9 @@ ensemble_scheduling {{
     if os.path.exists(FEATURES_DST):
         shutil.rmtree(FEATURES_DST)
     shutil.copytree(FEATURES_SRC, FEATURES_DST)
-    logger.info("✅ Copied features/ to %s", FEATURES_DST)
+    logger.info("Copied features/ to %s", FEATURES_DST)
 
-    logger.info("🚀 Triton ensemble ready at: %s", os.path.abspath(repo_path))
+    logger.info("Triton ensemble ready at: %s", os.path.abspath(repo_path))
 
 
 def main():

@@ -46,7 +46,7 @@ mlflow:
 
 # Ray configuration
 ray:
-  address: "ray://localhost:10001"  # Ray cluster address
+  address: "ray://raycluster-kuberay-head-svc:10001"  # Ray cluster address
   runtime_env:
     working_dir: "."  # Working directory
     py_modules:

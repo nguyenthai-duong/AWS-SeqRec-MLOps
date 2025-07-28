@@ -3,10 +3,10 @@ pipeline {
 
   environment {
     CONDA_ENV = "datn"
-    AWS_ACCESS_KEY_ID=""
-    AWS_SECRET_ACCESS_KEY=""
+    AWS_ACCESS_KEY_ID = credentials('aws-credentials').AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY = credentials('aws-credentials').AWS_SECRET_ACCESS_KEY
     AWS_DEFAULT_REGION = "ap-southeast-1"
-    S3_MODEL_REPO = "s3://datn-onnx/"
+    S3_MODEL_REPO = "s3://recsys-triton-repo/"
     MLFLOW_S3_ENDPOINT_URL = "http://minio-service.mlflow.svc.cluster.local:9000"
     MLFLOW_TRACKING_URI = "http://mlflow-tracking-service.mlflow.svc.cluster.local:5000"
     PATH = "$HOME/.local/bin:$PATH"
@@ -28,7 +28,7 @@ pipeline {
           source /opt/conda/etc/profile.d/conda.sh
           conda activate ${CONDA_ENV}
           pip install tqdm
-          python src/model_ranking_sequence/convert2onnx.py
+          python src/model_ranking_sequence/convert2onnx_and_build_triton.py
         "
         '''
       }

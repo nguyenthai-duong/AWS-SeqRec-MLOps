@@ -255,27 +255,27 @@ def train_ranking_sequence_op(
 # Tạo component từ các hàm trên
 feature_component = func_to_container_op(
     feature_engineering_op,
-    base_image="kubeflow-pipeline:v3",
+    base_image="kubeflow-pipeline:v5",
 )
 
 negative_sampling_component = func_to_container_op(
     negative_sampling_op,
-    base_image="kubeflow-pipeline:v3",
+    base_image="kubeflow-pipeline:v5",
 )
 
 prep_item2vec_component = func_to_container_op(
     prep_item2vec_op,
-    base_image="kubeflow-pipeline:v3",
+    base_image="kubeflow-pipeline:v5",
 )
 
 train_item2vec_component = func_to_container_op(
     train_item2vec_op,
-    base_image="kubeflow-pipeline:v3",
+    base_image="kubeflow-pipeline:v5",
 )
 
 train_ranking_sequence_component = func_to_container_op(
     train_ranking_sequence_op,
-    base_image="kubeflow-pipeline:v3",
+    base_image="kubeflow-pipeline:v5",
 )
 
 
@@ -346,7 +346,7 @@ def feature_pipeline():
         .set_memory_request("2Gi")
     )
 
-    # feature_task.execution_options.caching_strategy.max_cache_staleness = "P0D"
+    feature_task.execution_options.caching_strategy.max_cache_staleness = "P0D"
 
     negative_sampling_task = (
         negative_sampling_component(
@@ -409,7 +409,7 @@ def feature_pipeline():
         .after(feature_task)
     )
 
-    # negative_sampling_task.execution_options.caching_strategy.max_cache_staleness = "P0D"
+    negative_sampling_task.execution_options.caching_strategy.max_cache_staleness = "P0D"
 
     prep_item2vec_task = (
         prep_item2vec_component(
@@ -421,7 +421,7 @@ def feature_pipeline():
         .set_memory_request("2Gi")
         .after(feature_task)
     )
-    # prep_item2vec_task.execution_options.caching_strategy.max_cache_staleness = "P0D"
+    prep_item2vec_task.execution_options.caching_strategy.max_cache_staleness = "P0D"
 
     # Add the new train_item2vec_task
     train_item2vec_task = (
@@ -435,7 +435,7 @@ def feature_pipeline():
         .after(prep_item2vec_task)
     )
 
-    # train_item2vec_task.execution_options.caching_strategy.max_cache_staleness = "P0D"
+    train_item2vec_task.execution_options.caching_strategy.max_cache_staleness = "P0D"
 
     # Add the new train_ranking_sequence_task
     train_ranking_sequence_task = (
