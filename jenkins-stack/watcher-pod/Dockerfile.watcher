@@ -1,0 +1,5 @@
+FROM python:3.10-slim
+WORKDIR /app
+RUN pip install mlflow requests
+COPY watch_promotion.py /app/
+CMD ["python", "/app/watch_promotion.py"]

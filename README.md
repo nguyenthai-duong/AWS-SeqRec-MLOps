@@ -457,7 +457,8 @@ kind load docker-image tritonserver-datn:v4 --name datn-serving
 kubectl create secret generic aws-credentials --from-env-file=../../.env --namespace=kserve
 ```
 
-
+kubectl apply -f inferenceservice-triton-gpu.yaml
+kubectl delete -f inferenceservice-triton-gpu.yaml
 ---
 
 
@@ -491,7 +492,17 @@ kind get kubeconfig --name datn-serving --internal > kubeconfig-serving.yaml
 kubectl port-forward pod/recsys-triton-predictor-XXXXX 8001:8001 -n kserve
 ```
 
+### watcher pod
+docker build -f Dockerfile.watcher -t nthaiduong83/model-promotion-watcher:v1 . 
+kind load docker-image nthaiduong83/model-promotion-watcher:v1 --name datn-training1
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+
+Cần phải set string param trong jenkins job: MODEL_NAME và MODEL_VERSION
 ---
+### DEMO
+![Demo Jenkins](images/architect/overall.gif)
+
 
 ## 🌐 API Gateway
 
@@ -509,13 +520,8 @@ kubectl port-forward svc/api-gateway-service 8009:80 -n api-gateway
 
 ## 🖥️ UI
 
-```bash
-cd ui
-conda create -n ui -y
-conda activate ui
-pip install -r requirements.txt
-```
-
+ssh to ec2 and run ui
+![Demo UI](images/architect/demo_ui.gif)
 ---
 
 

@@ -9,7 +9,7 @@ spec:
     maxReplicas: 2
     containers:
     - name: kserve-container
-      image: nthaiduong83/tritonserver-datn:v4
+      image: nthaiduong83/tritonserver-datn:v3
       imagePullPolicy: IfNotPresent
       args:
         - "--model-repository=s3://recsys-triton-repo/"

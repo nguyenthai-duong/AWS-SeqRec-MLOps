@@ -37,8 +37,8 @@ user_list = [
     "AFO2VP5GWU5PF44UFVG5HTOHYLHA",
     "AHURNOZ3IY2UBHUDAM2D22XTSVFA"
 ]
-REC_API_URL = "http://localhost:8009/infer"
-PURCHASE_API_URL = "http://localhost:8005/user_features"
+REC_API_URL = "http://18.59.107.208:8009/infer"
+PURCHASE_API_URL = "http://18.59.107.208:8005/user_features"
 feedback_store: Dict[str, List[str]] = {}
 product_html_cache: Dict[str, Dict[str, str]] = {}
 
