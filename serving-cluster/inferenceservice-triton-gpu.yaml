@@ -9,10 +9,10 @@ spec:
     maxReplicas: 2
     containers:
     - name: kserve-container
-      image: nthaiduong83/tritonserver-datn:v3
+      image: nthaiduong83/tritonserver-datn:v4
       imagePullPolicy: IfNotPresent
       args:
-        - "--model-repository=s3://datn-onnx/"
+        - "--model-repository=s3://recsys-triton-repo/"
         - "--log-verbose=2"
       env:
         - name: AWS_ACCESS_KEY_ID
