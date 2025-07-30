@@ -30,13 +30,14 @@ A **production-ready, end-to-end Recommender System pipeline** for scalable, clo
 ## 📚 Table of Contents
 
 1. [Quickstart](#-quickstart)
-2. [Infrastructure Setup](#infrastructure-setup)
-3. [Data Pipeline & Feature Store](#data-pipeline--feature-store)
-4. [Offline Caching](#offline-caching)
-5. [Serving Cluster & Model Serving](#serving-cluster--model-serving)
-6. [CI/CD & Jenkins Integration](#cicd--jenkins-integration)
-7. [API Gateway & UI](#api-gateway--ui)
-8. [License](#license)
+2. [Infrastructure Setup](#-infrastructure-setup)
+3. [Data Pipeline & Feature Store](#-data-pipeline--feature-store)
+4. [Kubeflow Pipeline Training](#-kubeflow-pipeline-training)
+5. [Offline Caching](#-offline-caching)
+6. [Serving Cluster & Model Serving](#-serving-cluster--model-serving)
+7. [CI/CD & Jenkins Integration](#-cicd--jenkins-integration)
+8. [API Gateway & UI](#-api-gateway--ui)
+9. [Monitoring](#-monitoring)
 
 ---
 
@@ -643,4 +644,34 @@ kubectl port-forward svc/api-gateway-service 8009:80 -n api-gateway
 - ![Demo UI](./images/setup/demo_ui.gif)
 
 ---
+
+## 📊 Monitoring
+
+1. **Install LGTM Stack Locally**:
+   ```bash
+   cd lgtm-stack
+   make install-local # testing
+   ```
+2. **Retrieve Grafana Admin Password: Use the following command to get the admin password for Grafana:**
+```bash
+kubectl get secret -n monitoring lgtm-grafana -o jsonpath="{.data.admin-password}" | base64 -d
+```
+Default username: `admin`
+
+3. **Apply Promtail Configuration: Apply the fixed Promtail configuration in the monitoring namespace:**
+```bash
+kubectl apply -f manifests/promtail.cri.yaml -n monitoring
+```
+4. **Grafana Dashboard:**
+- ![grafana](./images/setup/grafana.png)
+5. **Loki Logs:**
+- ![Loki](./images/setup/loki.png)
+
+#### Throughput and performance of model
+Run Locust Test: Execute the Locust test using the provided `locustfile.py`
+- ![Locust](./images/setup/locust.png)
+- ![auc](./images/setup/auc.png)
+
+
+
 

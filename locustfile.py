@@ -10,5 +10,3 @@ class InferenceUser(HttpUser):
             f"/infer?user_id={user_id}",
             headers={"accept": "application/json"}
         )
-
-# uv run locust -f locustfile.py --host=http://localhost:8010

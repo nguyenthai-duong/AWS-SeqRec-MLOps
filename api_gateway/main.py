@@ -12,7 +12,12 @@ from tritonclient.grpc.aio import InferenceServerClient, InferInput, InferReques
 import os
 import time
 import grpc
-
+from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
 
 # Logging configuration
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -20,6 +25,27 @@ logger = logging.getLogger(__name__)
 
 # FastAPI application instance
 app = FastAPI()
+
+# OpenTelemetry configuration
+resource = Resource(attributes={
+    "service.name": "api-gateway",
+    "service.namespace": "monitoring",
+    "service.instance.id": os.getenv("HOSTNAME", "api-gateway"),
+})
+
+trace.set_tracer_provider(TracerProvider(resource=resource))
+tracer = trace.get_tracer(__name__)
+
+# Configure OTLP exporter to send traces to Tempo
+otlp_exporter = OTLPSpanExporter(
+    endpoint="http://lgtm-tempo-distributor.monitoring.svc.cluster.local:4318/v1/traces",  # Tempo OTLP HTTP endpoint
+    headers={"Content-Type": "application/json"},
+)
+span_processor = BatchSpanProcessor(otlp_exporter)
+trace.get_tracer_provider().add_span_processor(span_processor)
+
+# Instrument FastAPI
+FastAPIInstrumentor.instrument_app(app)
 
 def get_triton_client():
     """
@@ -237,227 +263,204 @@ def get_similar_items(item_id: str = Query("B000N178E2")):
 async def infer_score(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")):
     """
     Performs inference to generate recommendation scores for a user using Triton Inference Server.
-
-    Args:
-        user_id (str): The user ID to generate recommendations for. Defaults to a sample ID.
-
-    Returns:
-        dict: A dictionary containing the user ID and a list of recommended items with scores.
-
-    Raises:
-        HTTPException: If no valid candidates/features/scores are found (404) or if an error occurs (500).
     """
     total_start = time.time()
-    try:
-        # Fetch user features
-        t0 = time.time()
-        logger.debug(f"Fetching user features for user_id: {user_id}")
-        async with http_session.post(USER_FEATURE_URL, json={"user_id": user_id}, timeout=3) as response:
-            response.raise_for_status()
-            try:
-                user_features = await response.json()
-            except json.JSONDecodeError as e:
-                logger.error(f"JSON decode error for user features: {e}")
-                raise HTTPException(status_code=502, detail="Invalid user features response")
-        t1 = time.time()
-        logger.info(f"[TIMING] Fetch user_features: {t1 - t0:.3f}s")
-
-        asin_string = user_features.get("user_rating_list_10_recent_asin", [""])[0]
-        input_seq = asin_string.split(",") if asin_string else []
-        input_seq_ts = user_features.get("item_sequence_ts_bucket", [[]])[0]
-
-        # Fetch popular items
-        t2 = time.time()
+    with tracer.start_as_current_span("infer_endpoint") as infer_span:
         try:
-            popular_items = redis_client.zrevrange("popular_parent_asin_score", 0, 19)
-        except redis.RedisError as e:
-            logger.error(f"Redis error fetching popular items: {e}")
-            raise HTTPException(status_code=500, detail="Redis error")
-        t3 = time.time()
-        logger.info(f"[TIMING] Fetch popular_items (Redis): {t3 - t2:.3f}s")
-
-        # Fetch similar items
-        last_item = input_seq[-1] if input_seq else None
-        t4 = time.time()
-        similar_items = []
-        if last_item:
-            key = f"rec:{last_item}"
-            try:
-                rec_json = redis_client.get(key)
-                if rec_json:
+            # Fetch user features
+            t0 = time.time()
+            logger.debug(f"Fetching user features for user_id: {user_id}")
+            with tracer.start_as_current_span("fetch_user_features") as user_span:
+                async with http_session.post(USER_FEATURE_URL, json={"user_id": user_id}, timeout=3) as response:
+                    response.raise_for_status()
                     try:
-                        similar_items = json.loads(rec_json).get("rec_items", [])
+                        user_features = await response.json()
                     except json.JSONDecodeError as e:
-                        logger.error(f"JSON decode error for similar items {key}: {e}")
-            except redis.RedisError as e:
-                logger.error(f"Redis error fetching similar items {key}: {e}")
-        t5 = time.time()
-        logger.info(f"[TIMING] Fetch similar_items (Redis): {t5 - t4:.3f}s")
+                        logger.error(f"JSON decode error for user features: {e}")
+                        raise HTTPException(status_code=502, detail="Invalid user features response")
+            t1 = time.time()
+            logger.info(f"[TIMING] Fetch user_features: {t1 - t0:.3f}s")
 
-        # Filter out seen items and limit candidates
-        seen_set = set(input_seq)
-        candidates = list({*popular_items, *similar_items} - seen_set)[:MAX_CANDIDATES]
-        if not candidates:
-            logger.warning("No valid candidates found")
-            raise HTTPException(status_code=404, detail="No valid candidates")
+            asin_string = user_features.get("user_rating_list_10_recent_asin", [""])[0]
+            input_seq = asin_string.split(",") if asin_string else []
+            input_seq_ts = user_features.get("item_sequence_ts_bucket", [[]])[0]
 
-        # Prepare user-specific inputs
-        user_ids = np.array([user_id], dtype=object).reshape(1, 1)
-        padded_seq = input_seq[-SEQ_LEN:] + ["-1"] * max(0, SEQ_LEN - len(input_seq))
-        padded_seq_ts = input_seq_ts[-SEQ_LEN:] + [-1] * max(0, SEQ_LEN - len(input_seq_ts))
-        input_seq_array = np.array([padded_seq], dtype=object)
-        input_seq_ts_array = np.array([padded_seq_ts], dtype=np.int64)
-
-        # Fetch item features concurrently with caching and semaphore
-        t6 = time.time()
-        async def fetch_item_features(item, semaphore):
-            """
-            Fetches item features from cache or external service with retry logic.
-
-            Args:
-                item (str): The item ID to fetch features for.
-                semaphore (asyncio.Semaphore): Semaphore to limit concurrent requests.
-
-            Returns:
-                tuple: A tuple of (item_id, features) or (item_id, None) if fetching fails.
-            """
-            cache_key = f"item_features:{item}"
-            cached = redis_client.get(cache_key)
-            if cached:
+            # Fetch popular items
+            t2 = time.time()
+            with tracer.start_as_current_span("fetch_popular_items") as pop_span:
                 try:
-                    return item, json.loads(cached)
-                except json.JSONDecodeError:
-                    logger.error(f"Invalid cached data for {item}")
+                    popular_items = redis_client.zrevrange("popular_parent_asin_score", 0, 19)
+                except redis.RedisError as e:
+                    logger.error(f"Redis error fetching popular items: {e}")
+                    raise HTTPException(status_code=500, detail="Redis error")
+            t3 = time.time()
+            logger.info(f"[TIMING] Fetch popular_items (Redis): {t3 - t2:.3f}s")
 
-            timeout = ClientTimeout(total=2, connect=0.5, sock_read=1.5)
-            async with semaphore:
-                for attempt in range(3):
+            # Fetch similar items
+            last_item = input_seq[-1] if input_seq else None
+            t4 = time.time()
+            similar_items = []
+            with tracer.start_as_current_span("fetch_similar_items") as sim_span:
+                if last_item:
+                    key = f"rec:{last_item}"
                     try:
-                        async with http_session.post(ITEM_FEATURE_URL, json={"parent_asin": item}, timeout=timeout) as response:
-                            response.raise_for_status()
-                            features = await response.json()
+                        rec_json = redis_client.get(key)
+                        if rec_json:
                             try:
-                                redis_client.setex(cache_key, 300, json.dumps(features))  # Cache for 5 minutes
-                            except redis.RedisError as e:
-                                logger.error(f"Failed to cache item features for {item}: {e}")
-                            return item, features
-                    except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                        logger.warning(f"Attempt {attempt + 1} failed for {item}: {str(e)}")
-                        if attempt == 2:
-                            logger.error(f"Failed to fetch item features for {item}: {str(e)}")
-                            return item, None
-                        await asyncio.sleep(0.1 * (attempt + 1))
+                                similar_items = json.loads(rec_json).get("rec_items", [])
+                            except json.JSONDecodeError as e:
+                                logger.error(f"JSON decode error for similar items {key}: {e}")
+                    except redis.RedisError as e:
+                        logger.error(f"Redis error fetching similar items {key}: {e}")
+            t5 = time.time()
+            logger.info(f"[TIMING] Fetch similar_items (Redis): {t5 - t4:.3f}s")
 
-        semaphore = asyncio.Semaphore(MAX_SEMAPHORE)
-        item_features_tasks = [fetch_item_features(item, semaphore) for item in candidates]
-        item_features_results = await asyncio.gather(*item_features_tasks, return_exceptions=True)
-        t7 = time.time()
-        logger.info(f"[TIMING] Fetch {len(candidates)} item_features (async): {t7 - t6:.3f}s")
+            # Filter out seen items and limit candidates
+            seen_set = set(input_seq)
+            candidates = list({*popular_items, *similar_items} - seen_set)[:MAX_CANDIDATES]
+            if not candidates:
+                logger.warning("No valid candidates found")
+                raise HTTPException(status_code=404, detail="No valid candidates")
 
-        valid_item_features = [result for result in item_features_results if isinstance(result, tuple) and result[1] is not None]
-        if not valid_item_features:
-            logger.warning("No valid item features found")
-            raise HTTPException(status_code=404, detail="No valid item features found")
+            # Prepare user-specific inputs
+            user_ids = np.array([user_id], dtype=object).reshape(1, 1)
+            padded_seq = input_seq[-SEQ_LEN:] + ["-1"] * max(0, SEQ_LEN - len(input_seq))
+            padded_seq_ts = input_seq_ts[-SEQ_LEN:] + [-1] * max(0, SEQ_LEN - len(input_seq_ts))
+            input_seq_array = np.array([padded_seq], dtype=object)
+            input_seq_ts_array = np.array([padded_seq_ts], dtype=np.int64)
 
-        # Triton inference with dynamic batching
-        t8 = time.time()
-        triton_client = get_triton_client()
-        async def infer_batch(batch_items, batch_features):
-            """
-            Performs Triton inference on a batch of items.
+            # Fetch item features concurrently
+            t6 = time.time()
+            async def fetch_item_features(item, semaphore):
+                cache_key = f"item_features:{item}"
+                with tracer.start_as_current_span(f"fetch_item_features_{item}") as item_span:
+                    cached = redis_client.get(cache_key)
+                    if cached:
+                        try:
+                            return item, json.loads(cached)
+                        except json.JSONDecodeError:
+                            logger.error(f"Invalid cached data for {item}")
 
-            Args:
-                batch_items (list): List of item IDs in the batch.
-                batch_features (list): List of feature dictionaries for the items.
+                    timeout = ClientTimeout(total=2, connect=0.5, sock_read=1.5)
+                    async with semaphore:
+                        for attempt in range(3):
+                            try:
+                                async with http_session.post(ITEM_FEATURE_URL, json={"parent_asin": item}, timeout=timeout) as response:
+                                    response.raise_for_status()
+                                    features = await response.json()
+                                    try:
+                                        redis_client.setex(cache_key, 300, json.dumps(features))
+                                    except redis.RedisError as e:
+                                        logger.error(f"Failed to cache item features for {item}: {e}")
+                                    return item, features
+                            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                                logger.warning(f"Attempt {attempt + 1} failed for {item}: {str(e)}")
+                                if attempt == 2:
+                                    logger.error(f"Failed to fetch item features for {item}: {str(e)}")
+                                    return item, None
+                                await asyncio.sleep(0.1 * (attempt + 1))
 
-            Returns:
-                list: A list of dictionaries containing item IDs and their inference scores.
-            """
-            batch_size = len(batch_items)
-            # Prepare inputs
-            items = np.array(batch_items, dtype=object).reshape(batch_size, MAX_ITEM_ID_LEN)
-            categories = np.array(["__".join(f.get("categories", [[]])[0]) for f in batch_features], dtype=object).reshape(batch_size, 1)
-            main_categories = np.array([f.get("main_category", [""])[0] for f in batch_features], dtype=object).reshape(batch_size, 1)
-            prices = np.array([safe_float(f.get("price", [0])[0]) for f in batch_features], dtype=np.float32).reshape(batch_size, 1)
-            rating_cnt_365d = np.array([safe_int(f.get("parent_asin_rating_cnt_365d", [0])[0]) for f in batch_features], dtype=np.int64).reshape(batch_size, 1)
-            rating_avg_365d = np.array([safe_float(f.get("parent_asin_rating_avg_prev_rating_365d", [0])[0]) for f in batch_features], dtype=np.float32).reshape(batch_size, 1)
-            rating_cnt_90d = np.array([safe_int(f.get("parent_asin_rating_cnt_90d", [0])[0]) for f in batch_features], dtype=np.int64).reshape(batch_size, 1)
-            rating_avg_90d = np.array([safe_float(f.get("parent_asin_rating_avg_prev_rating_90d", [0])[0]) for f in batch_features], dtype=np.float32).reshape(batch_size, 1)
-            rating_cnt_30d = np.array([safe_int(f.get("parent_asin_rating_cnt_30d", [0])[0]) for f in batch_features], dtype=np.int64).reshape(batch_size, 1)
-            rating_avg_30d = np.array([safe_float(f.get("parent_asin_rating_avg_prev_rating_30d", [0])[0]) for f in batch_features], dtype=np.float32).reshape(batch_size, 1)
-            rating_cnt_7d = np.array([safe_int(f.get("parent_asin_rating_cnt_7d", [0])[0]) for f in batch_features], dtype=np.int64).reshape(batch_size, 1)
-            rating_avg_7d = np.array([safe_float(f.get("parent_asin_rating_avg_prev_rating_7d", [0])[0]) for f in batch_features], dtype=np.float32).reshape(batch_size, 1)
+            semaphore = asyncio.Semaphore(MAX_SEMAPHORE)
+            item_features_tasks = [fetch_item_features(item, semaphore) for item in candidates]
+            item_features_results = await asyncio.gather(*item_features_tasks, return_exceptions=True)
+            t7 = time.time()
+            logger.info(f"[TIMING] Fetch {len(candidates)} item_features (async): {t7 - t6:.3f}s")
 
-            # Repeat user sequence for batch
-            user_ids = np.repeat(user_ids_infer, batch_size, axis=0)
-            input_seq = np.repeat(input_seq_array, batch_size, axis=0)
-            input_seq_ts_bucket = np.repeat(input_seq_ts_array, batch_size, axis=0)
+            valid_item_features = [result for result in item_features_results if isinstance(result, tuple) and result[1] is not None]
+            if not valid_item_features:
+                logger.warning("No valid item features found")
+                raise HTTPException(status_code=404, detail="No valid item features found")
 
-            input_data = {
-                "user_ids": user_ids,
-                "input_seq": input_seq,
-                "input_seq_ts_bucket": input_seq_ts_bucket,
-                "items": items,
-                "categories": categories,
-                "main_categories": main_categories,
-                "prices": prices,
-                "rating_cnt_365d": rating_cnt_365d,
-                "rating_avg_365d": rating_avg_365d,
-                "rating_cnt_90d": rating_cnt_90d,
-                "rating_avg_90d": rating_avg_90d,
-                "rating_cnt_30d": rating_cnt_30d,
-                "rating_avg_30d": rating_avg_30d,
-                "rating_cnt_7d": rating_cnt_7d,
-                "rating_avg_7d": rating_avg_7d,
-            }
+            # Triton inference with dynamic batching
+            t8 = time.time()
+            triton_client = get_triton_client()
+            async def infer_batch(batch_items, batch_features):
+                with tracer.start_as_current_span("triton_inference_batch") as triton_span:
+                    batch_size = len(batch_items)
+                    # Prepare inputs
+                    items = np.array(batch_items, dtype=object).reshape(batch_size, MAX_ITEM_ID_LEN)
+                    categories = np.array(["__".join(f.get("categories", [[]])[0]) for f in batch_features], dtype=object).reshape(batch_size, 1)
+                    main_categories = np.array([f.get("main_category", [""])[0] for f in batch_features], dtype=object).reshape(batch_size, 1)
+                    prices = np.array([safe_float(f.get("price", [0])[0]) for f in batch_features], dtype=np.float32).reshape(batch_size, 1)
+                    rating_cnt_365d = np.array([safe_int(f.get("parent_asin_rating_cnt_365d", [0])[0]) for f in batch_features], dtype=np.int64).reshape(batch_size, 1)
+                    rating_avg_365d = np.array([safe_float(f.get("parent_asin_rating_avg_prev_rating_365d", [0])[0]) for f in batch_features], dtype=np.float32).reshape(batch_size, 1)
+                    rating_cnt_90d = np.array([safe_int(f.get("parent_asin_rating_cnt_90d", [0])[0]) for f in batch_features], dtype=np.int64).reshape(batch_size, 1)
+                    rating_avg_90d = np.array([safe_float(f.get("parent_asin_rating_avg_prev_rating_90d", [0])[0]) for f in batch_features], dtype=np.float32).reshape(batch_size, 1)
+                    rating_cnt_30d = np.array([safe_int(f.get("parent_asin_rating_cnt_30d", [0])[0]) for f in batch_features], dtype=np.int64).reshape(batch_size, 1)
+                    rating_avg_30d = np.array([safe_float(f.get("parent_asin_rating_avg_prev_rating_30d", [0])[0]) for f in batch_features], dtype=np.float32).reshape(batch_size, 1)
+                    rating_cnt_7d = np.array([safe_int(f.get("parent_asin_rating_cnt_7d", [0])[0]) for f in batch_features], dtype=np.int64).reshape(batch_size, 1)
+                    rating_avg_7d = np.array([safe_float(f.get("parent_asin_rating_avg_prev_rating_7d", [0])[0]) for f in batch_features], dtype=np.float32).reshape(batch_size, 1)
 
-            inputs = []
-            for name, data in input_data.items():
-                dtype = data.dtype
-                if dtype == object:
-                    dtype_str = "BYTES"
-                elif dtype == np.int64:
-                    dtype_str = "INT64"
-                elif dtype == np.float32:
-                    dtype_str = "FP32"
-                else:
-                    raise ValueError(f"Unsupported dtype {dtype} for {name}")
-                inp = InferInput(name, data.shape, dtype_str)
-                inp.set_data_from_numpy(data)
-                inputs.append(inp)
+                    user_ids = np.repeat(user_ids_infer, batch_size, axis=0)
+                    input_seq = np.repeat(input_seq_array, batch_size, axis=0)
+                    input_seq_ts_bucket = np.repeat(input_seq_ts_array, batch_size, axis=0)
 
-            outputs = [InferRequestedOutput("output")]
-            try:
-                response = await triton_client.infer(model_name=MODEL_NAME, inputs=inputs, outputs=outputs)
-                scores = response.as_numpy("output").flatten()
-                return [{"item_id": item, "score": float(score)} for item, score in zip(batch_items, scores)]
-            except Exception as e:
-                logger.error(f"Triton inference failed for batch: {str(e)}")
-                return []
+                    input_data = {
+                        "user_ids": user_ids,
+                        "input_seq": input_seq,
+                        "input_seq_ts_bucket": input_seq_ts_bucket,
+                        "items": items,
+                        "categories": categories,
+                        "main_categories": main_categories,
+                        "prices": prices,
+                        "rating_cnt_365d": rating_cnt_365d,
+                        "rating_avg_365d": rating_avg_365d,
+                        "rating_cnt_90d": rating_cnt_90d,
+                        "rating_avg_90d": rating_avg_90d,
+                        "rating_cnt_30d": rating_cnt_30d,
+                        "rating_avg_30d": rating_avg_30d,
+                        "rating_cnt_7d": rating_cnt_7d,
+                        "rating_avg_7d": rating_avg_7d,
+                    }
 
-        # Prepare static arrays (reuse for all batches)
-        user_ids_infer = np.array([user_id], dtype=object).reshape(1, 1)
-        input_seq_array = np.array([padded_seq], dtype=object)
-        input_seq_ts_array = np.array([padded_seq_ts], dtype=np.int64)
+                    inputs = []
+                    for name, data in input_data.items():
+                        dtype = data.dtype
+                        if dtype == object:
+                            dtype_str = "BYTES"
+                        elif dtype == np.int64:
+                            dtype_str = "INT64"
+                        elif dtype == np.float32:
+                            dtype_str = "FP32"
+                        else:
+                            raise ValueError(f"Unsupported dtype {dtype} for {name}")
+                        inp = InferInput(name, data.shape, dtype_str)
+                        inp.set_data_from_numpy(data)
+                        inputs.append(inp)
 
-        inference_results = []
-        for i in range(0, len(valid_item_features), BATCH_SIZE):
-            batch = valid_item_features[i:i + BATCH_SIZE]
-            batch_items = [item for item, _ in batch]
-            batch_features = [features for _, features in batch]
-            results = await infer_batch(batch_items, batch_features)
-            inference_results.extend(results)
-        t9 = time.time()
-        logger.info(f"[TIMING] Triton inference {len(valid_item_features)} items (batched): {t9 - t8:.3f}s")
+                    outputs = [InferRequestedOutput("output")]
+                    try:
+                        response = await triton_client.infer(model_name=MODEL_NAME, inputs=inputs, outputs=outputs)
+                        scores = response.as_numpy("output").flatten()
+                        return [{"item_id": item, "score": float(score)} for item, score in zip(batch_items, scores)]
+                    except Exception as e:
+                        logger.error(f"Triton inference failed for batch: {str(e)}")
+                        return []
 
-        if not inference_results:
-            logger.warning("No valid scores computed")
-            raise HTTPException(status_code=404, detail="No valid scores computed")
-        inference_results.sort(key=lambda x: x["score"], reverse=True)
-        total_end = time.time()
-        logger.info(f"[TIMING] Total /infer request: {total_end - total_start:.3f}s")
-        return {"user_id": user_id, "recommendations": inference_results[:10]}
+            # Prepare static arrays
+            user_ids_infer = np.array([user_id], dtype=object).reshape(1, 1)
+            input_seq_array = np.array([padded_seq], dtype=object)
+            input_seq_ts_array = np.array([padded_seq_ts], dtype=np.int64)
 
-    except Exception as e:
-        logger.error(f"Error in /infer: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Inference failed: {str(e)}")
+            inference_results = []
+            for i in range(0, len(valid_item_features), BATCH_SIZE):
+                batch = valid_item_features[i:i + BATCH_SIZE]
+                batch_items = [item for item, _ in batch]
+                batch_features = [features for _, features in batch]
+                results = await infer_batch(batch_items, batch_features)
+                inference_results.extend(results)
+            t9 = time.time()
+            logger.info(f"[TIMING] Triton inference {len(valid_item_features)} items (batched): {t9 - t8:.3f}s")
+
+            if not inference_results:
+                logger.warning("No valid scores computed")
+                raise HTTPException(status_code=404, detail="No valid scores computed")
+            inference_results.sort(key=lambda x: x["score"], reverse=True)
+            total_end = time.time()
+            logger.info(f"[TIMING] Total /infer request: {total_end - total_start:.3f}s")
+            return {"user_id": user_id, "recommendations": inference_results[:10]}
+
+        except Exception as e:
+            logger.error(f"Error in /infer: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Inference failed: {str(e)}") 
+
