@@ -428,8 +428,6 @@ uv run run_pipeline.py
 - This will generate `feature_pipeline.yaml`.
 - Go to the Kubeflow Pipelines UI, create a new pipeline or experiment, upload `feature_pipeline.yaml`, and run it.
 
-![Kubeflow pipeline](images/setup/kfp.png)
-
 ---
 
 ### 2. Pipeline Steps
