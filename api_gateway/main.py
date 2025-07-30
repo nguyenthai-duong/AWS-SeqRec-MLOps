@@ -13,23 +13,30 @@ import os
 import time
 import grpc
 
-# Logging setup
+
+# Logging configuration
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# FastAPI app
+# FastAPI application instance
 app = FastAPI()
 
-# Per-worker Triton client via FastAPI dependency
 def get_triton_client():
+    """
+    Returns a Triton Inference Server client for the FastAPI application.
+    Creates a new client if one does not exist in the application state.
+
+    Returns:
+        InferenceServerClient: A Triton Inference Server client instance.
+    """
     if not hasattr(app.state, "triton_client"):
         app.state.triton_client = InferenceServerClient(url=TRITON_URL, ssl=False)
     return app.state.triton_client
 
-# Global HTTP session
+# Global HTTP session for async HTTP requests
 http_session: aiohttp.ClientSession = None
 
-# Redis client setup with connection pool
+# Redis connection pool and client setup
 redis_pool = redis.ConnectionPool(
     host=os.environ.get("REDIS_HOST", "localhost"),
     port=int(os.environ.get("REDIS_PORT", 6379)),
@@ -39,25 +46,36 @@ redis_pool = redis.ConnectionPool(
 )
 redis_client = redis.Redis(connection_pool=redis_pool)
 
-# Config for external services
+# Configuration for external services and model parameters
 USER_FEATURE_URL = os.environ.get("USER_FEATURE_URL", "http://localhost:8005/user_features")
 ITEM_FEATURE_URL = os.environ.get("ITEM_FEATURE_URL", "http://localhost:8005/features_parent_asin")
 TRITON_URL = os.environ.get("TRITON_URL", "localhost:8001")
 MODEL_NAME = os.environ.get("MODEL_NAME", "ensemble")
 SEQ_LEN = int(os.environ.get("SEQ_LEN", 10))
 MAX_ITEM_ID_LEN = int(os.environ.get("MAX_ITEM_ID_LEN", 1))
-BATCH_SIZE = int(os.environ.get("BATCH_SIZE", 32))  # Default, can override with env
+BATCH_SIZE = int(os.environ.get("BATCH_SIZE", 32))
 MAX_SEMAPHORE = int(os.environ.get("MAX_FETCH_CONCURRENCY", 50))
 MAX_CANDIDATES = int(os.environ.get("MAX_CANDIDATES", 100))
 
-# Request models
 class UserRequest(BaseModel):
+    """Pydantic model for validating user ID in requests."""
     user_id: str
 
 class ItemRequest(BaseModel):
+    """Pydantic model for validating parent ASIN in requests."""
     parent_asin: str
 
 def safe_float(value, default=0.0):
+    """
+    Converts a value to a float, handling None or invalid values.
+
+    Args:
+        value: The value to convert to a float.
+        default (float): The default value to return if conversion fails. Defaults to 0.0.
+
+    Returns:
+        float: The converted float value or the default if conversion fails.
+    """
     if value is None or value == "None":
         return default
     try:
@@ -66,6 +84,16 @@ def safe_float(value, default=0.0):
         return default
 
 def safe_int(value, default=0):
+    """
+    Converts a value to an integer, handling None or invalid values.
+
+    Args:
+        value: The value to convert to an integer.
+        default (int): The default value to return if conversion fails. Defaults to 0.
+
+    Returns:
+        int: The converted integer value or the default if conversion fails.
+    """
     if value is None or value == "None":
         return default
     try:
@@ -75,6 +103,12 @@ def safe_int(value, default=0):
 
 @app.on_event("startup")
 async def startup_event():
+    """
+    Initializes the aiohttp ClientSession and verifies Redis connection on application startup.
+
+    Raises:
+        RuntimeError: If the Redis connection fails.
+    """
     global http_session
     http_session = aiohttp.ClientSession()
     logger.info("Initialized aiohttp ClientSession")
@@ -87,18 +121,32 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    """
+    Cleans up resources on application shutdown, including closing the aiohttp ClientSession
+    and Triton client if they exist.
+    """
     global http_session
     if http_session:
         await http_session.close()
         logger.info("Closed aiohttp ClientSession")
-    # Triton client cleanup per worker (if exists)
     if hasattr(app.state, "triton_client"):
         await app.state.triton_client.close()
         del app.state.triton_client
 
-# 1. Popular items
 @app.get("/popular_items")
 def get_popular_items(top_k: int = 10):
+    """
+    Retrieves the top K popular items from Redis sorted set.
+
+    Args:
+        top_k (int): Number of top items to retrieve. Defaults to 10.
+
+    Returns:
+        dict: A dictionary containing a list of popular items with their ranks and scores.
+
+    Raises:
+        HTTPException: If a Redis error occurs, returns a 500 status code.
+    """
     try:
         redis_key = "popular_parent_asin_score"
         top_items = redis_client.zrevrange(redis_key, 0, top_k - 1, withscores=True)
@@ -111,9 +159,20 @@ def get_popular_items(top_k: int = 10):
         logger.error(f"Redis error in get_popular_items: {e}")
         raise HTTPException(status_code=500, detail="Redis error")
 
-# 2. Get user features (proxy)
 @app.get("/user_features")
 async def get_user_features(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")):
+    """
+    Proxies a request to fetch user features from an external service.
+
+    Args:
+        user_id (str): The user ID to fetch features for. Defaults to a sample ID.
+
+    Returns:
+        dict: The user features returned by the external service.
+
+    Raises:
+        HTTPException: If the external service call fails, returns a 502 status code.
+    """
     try:
         async with http_session.post(USER_FEATURE_URL, json={"user_id": user_id}, timeout=3) as response:
             response.raise_for_status()
@@ -122,9 +181,21 @@ async def get_user_features(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")
         logger.error(f"Error calling user service: {e}")
         raise HTTPException(status_code=502, detail=f"Error calling user service: {e}")
 
-# 3. Get item features (proxy)
 @app.get("/features_parent_asin")
 async def get_item_features(parent_asin: str = Query("B000N178E2")):
+    Filipe:
+    """
+    Proxies a request to fetch item features from an external service.
+
+    Args:
+        parent_asin (str): The parent ASIN to fetch features for. Defaults to a sample ASIN.
+
+    Returns:
+        dict: The item features returned by the external service.
+
+    Raises:
+        HTTPException: If the external service call fails, returns a 502 status code.
+    """
     try:
         async with http_session.post(ITEM_FEATURE_URL, json={"parent_asin": parent_asin}, timeout=3) as response:
             response.raise_for_status()
@@ -133,9 +204,20 @@ async def get_item_features(parent_asin: str = Query("B000N178E2")):
         logger.error(f"Error calling item service: {e}")
         raise HTTPException(status_code=502, detail=f"Error calling item service: {e}")
 
-# 4. Similar items from Redis
 @app.get("/similar_items")
 def get_similar_items(item_id: str = Query("B000N178E2")):
+    """
+    Retrieves similar items for a given item ID from Redis.
+
+    Args:
+        item_id (str): The item ID to fetch similar items for. Defaults to a sample ID.
+
+    Returns:
+        dict: A dictionary containing the item ID and a list of similar items.
+
+    Raises:
+        HTTPException: If no recommendations are found (404) or if a Redis/JSON error occurs (500).
+    """
     try:
         key = f"rec:{item_id}"
         rec_json = redis_client.get(key)
@@ -151,12 +233,23 @@ def get_similar_items(item_id: str = Query("B000N178E2")):
         logger.error(f"JSON decode error for similar items {key}: {e}")
         raise HTTPException(status_code=500, detail="Invalid recommendation data")
 
-# 5. Infer scores with batching and per-worker triton client
 @app.get("/infer")
 async def infer_score(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")):
+    """
+    Performs inference to generate recommendation scores for a user using Triton Inference Server.
+
+    Args:
+        user_id (str): The user ID to generate recommendations for. Defaults to a sample ID.
+
+    Returns:
+        dict: A dictionary containing the user ID and a list of recommended items with scores.
+
+    Raises:
+        HTTPException: If no valid candidates/features/scores are found (404) or if an error occurs (500).
+    """
     total_start = time.time()
     try:
-        ### 1. Fetch user features
+        # Fetch user features
         t0 = time.time()
         logger.debug(f"Fetching user features for user_id: {user_id}")
         async with http_session.post(USER_FEATURE_URL, json={"user_id": user_id}, timeout=3) as response:
@@ -173,7 +266,7 @@ async def infer_score(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")):
         input_seq = asin_string.split(",") if asin_string else []
         input_seq_ts = user_features.get("item_sequence_ts_bucket", [[]])[0]
 
-        ### 2. Fetch popular items
+        # Fetch popular items
         t2 = time.time()
         try:
             popular_items = redis_client.zrevrange("popular_parent_asin_score", 0, 19)
@@ -183,7 +276,7 @@ async def infer_score(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")):
         t3 = time.time()
         logger.info(f"[TIMING] Fetch popular_items (Redis): {t3 - t2:.3f}s")
 
-        ### 3. Fetch similar items
+        # Fetch similar items
         last_item = input_seq[-1] if input_seq else None
         t4 = time.time()
         similar_items = []
@@ -215,9 +308,19 @@ async def infer_score(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")):
         input_seq_array = np.array([padded_seq], dtype=object)
         input_seq_ts_array = np.array([padded_seq_ts], dtype=np.int64)
 
-        ### 4. Fetch item features concurrently with caching and semaphore
+        # Fetch item features concurrently with caching and semaphore
         t6 = time.time()
         async def fetch_item_features(item, semaphore):
+            """
+            Fetches item features from cache or external service with retry logic.
+
+            Args:
+                item (str): The item ID to fetch features for.
+                semaphore (asyncio.Semaphore): Semaphore to limit concurrent requests.
+
+            Returns:
+                tuple: A tuple of (item_id, features) or (item_id, None) if fetching fails.
+            """
             cache_key = f"item_features:{item}"
             cached = redis_client.get(cache_key)
             if cached:
@@ -234,7 +337,7 @@ async def infer_score(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")):
                             response.raise_for_status()
                             features = await response.json()
                             try:
-                                redis_client.setex(cache_key, 300, json.dumps(features))  # Cache 5 min
+                                redis_client.setex(cache_key, 300, json.dumps(features))  # Cache for 5 minutes
                             except redis.RedisError as e:
                                 logger.error(f"Failed to cache item features for {item}: {e}")
                             return item, features
@@ -256,10 +359,20 @@ async def infer_score(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")):
             logger.warning("No valid item features found")
             raise HTTPException(status_code=404, detail="No valid item features found")
 
-        ### 5. Triton inference with dynamic batching (auto-chunk by BATCH_SIZE)
+        # Triton inference with dynamic batching
         t8 = time.time()
         triton_client = get_triton_client()
         async def infer_batch(batch_items, batch_features):
+            """
+            Performs Triton inference on a batch of items.
+
+            Args:
+                batch_items (list): List of item IDs in the batch.
+                batch_features (list): List of feature dictionaries for the items.
+
+            Returns:
+                list: A list of dictionaries containing item IDs and their inference scores.
+            """
             batch_size = len(batch_items)
             # Prepare inputs
             items = np.array(batch_items, dtype=object).reshape(batch_size, MAX_ITEM_ID_LEN)
@@ -322,7 +435,7 @@ async def infer_score(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")):
                 logger.error(f"Triton inference failed for batch: {str(e)}")
                 return []
 
-        # Prepare static arrays (reuse for all batch)
+        # Prepare static arrays (reuse for all batches)
         user_ids_infer = np.array([user_id], dtype=object).reshape(1, 1)
         input_seq_array = np.array([padded_seq], dtype=object)
         input_seq_ts_array = np.array([padded_seq_ts], dtype=np.int64)
@@ -348,4 +461,3 @@ async def infer_score(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")):
     except Exception as e:
         logger.error(f"Error in /infer: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Inference failed: {str(e)}")
-

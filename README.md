@@ -170,7 +170,7 @@ docker tag gcr.io/arrikto-playground/kubeflow/oidc-authservice:0c4ea9a nthaiduon
 - Update `manifests/common/oidc-authservice/base/statefulset.yaml` to use the new image.
 - Change `autoscaling/v2beta2` to `autoscaling/v2` in manifests if needed.
 
-#### Increase inotify Limits
+Increase inotify Limits
 
 ```bash
 echo "fs.inotify.max_user_watches=524288" | sudo tee /etc/sysctl.d/99-kubeflow.conf
@@ -206,7 +206,9 @@ kubectl get pods -n kubeflow-user-example-com -o json | jq '.items[] | select(.s
 
 ### 5. MLflow & Jenkins Integration
 
-#### MLflow
+#### Deploy MLflow Tracking Server
+
+Build the MLflow Docker image, load it into your Kind cluster, and deploy using Helm:
 
 ```bash
 docker build -t nthaiduong83/mlflow-kubeflow:v1 -f ./mlflow-stack/mlflow.Dockerfile .
@@ -214,7 +216,9 @@ kind load docker-image nthaiduong83/mlflow-kubeflow:v1 --name datn-training1
 helm upgrade mlflow-stack ./mlflow-stack -n mlflow --install --create-namespace
 ```
 
-#### Jenkins
+#### Deploy Jenkins CI/CD Server
+
+Build the Jenkins Docker image, load it into Kind, and deploy with Helm:
 
 ```bash
 docker build -f ./jenkins-stack/Dockerfile.jenkins -t nthaiduong83/jenkins-datn:v1 .
@@ -222,26 +226,49 @@ kind load docker-image nthaiduong83/jenkins-datn:v1 --name datn-training1
 helm upgrade jenkins-stack ./jenkins-stack -n devops-tools --install --create-namespace
 ```
 
-*Retrieve Jenkins Admin Password:*
+**Retrieve Jenkins Admin Password:**
+
 ```bash
 kubectl exec -n devops-tools -it jenkins-XXXXX -- cat /var/jenkins_home/secrets/initialAdminPassword
 ```
+*(Replace `jenkins-XXXXX` with your Jenkins pod name.)*
 
-#### Integrate into Kubeflow Dashboard
+#### Integrate MLflow & Jenkins into Kubeflow Dashboard
 
-- Edit `centraldashboard-config` ConfigMap to add MLflow and Jenkins links.
-- Apply and restart dashboard:
+1. Export the current dashboard config:
 
-```bash
-kubectl apply -f dashboard-config.yaml
-kubectl rollout restart deployment centraldashboard -n kubeflow
-```
+   ```bash
+   kubectl get configmap centraldashboard-config -n kubeflow -o yaml > dashboard-config.yaml
+   ```
+
+2. Add the following items to the `links` section in `dashboard-config.yaml`:
+
+   ```yaml
+   - type: item
+     link: /mlflow/
+     text: MLflow
+     icon: icons:cached
+   - type: item
+     link: /jenkins/
+     text: Jenkins
+     icon: icons:extension
+   ```
+
+3. Apply the updated config and restart the dashboard:
+
+   ```bash
+   kubectl apply -f dashboard-config.yaml
+   kubectl rollout restart deployment centraldashboard -n kubeflow
+   ```
 
 #### Access Kubeflow UI
+
+Forward the Istio ingress gateway to access the Kubeflow dashboard locally:
 
 ```bash
 kubectl port-forward svc/istio-ingressgateway 8000:80 -n istio-system
 ```
+Then open [http://localhost:8000](http://localhost:8000) in your browser
 
 ---
 
@@ -415,7 +442,7 @@ kubectl port-forward svc/redis-master 6379:6379 -n cache
 
 ### Option 1: EKS (Recommended for Production)
 
-- [Instructions for EKS setup here...]
+Using terraform in serving-cluster
 
 ### Option 2: Local (Kind)
 
@@ -435,7 +462,6 @@ helm repo update
 helm install --wait --generate-name -n gpu-operator --create-namespace nvidia/gpu-operator --set driver.enabled=false
 docker info | grep -i runtime
 ```
-
 ---
 
 ### Deploy KServe & Triton
@@ -458,7 +484,6 @@ kubectl create secret generic aws-credentials --from-env-file=../../.env --names
 ```
 
 kubectl apply -f inferenceservice-triton-gpu.yaml
-kubectl delete -f inferenceservice-triton-gpu.yaml
 ---
 
 
@@ -466,10 +491,11 @@ kubectl delete -f inferenceservice-triton-gpu.yaml
 
 
 
-## Lấy credential k8s cluster
-kind get kubeconfig --name datn-cluster > kind_kubeconfig.yaml
 
-### Jenkins Pipeline for CI/CD
+
+
+
+## ⚙️ CI/CD & Jenkins Integration
 Cấu hình AWS Credentials trong Jenkins
 Vào Jenkins > Manage Jenkins > Manage Plugins, đảm bảo đã cài AWS Credentials Plugin.
 Vào Manage Jenkins > Manage Credentials:
@@ -481,6 +507,8 @@ Access Key ID: Nhập giá trị AWS_ACCESS_KEY_ID.
 Secret Access Key: Nhập giá trị AWS_SECRET_ACCESS_KEY.
 Lưu lại.
 
+ Lấy credential k8s cluster
+kind get kubeconfig --name datn-cluster > kind_kubeconfig.yaml
 ```bash
 kind get kubeconfig --name datn-serving --internal > kubeconfig-serving.yaml
 ```
@@ -492,7 +520,7 @@ kind get kubeconfig --name datn-serving --internal > kubeconfig-serving.yaml
 kubectl port-forward pod/recsys-triton-predictor-XXXXX 8001:8001 -n kserve
 ```
 
-### watcher pod
+### watcher pod để trigger jenkins pipeline 
 docker build -f Dockerfile.watcher -t nthaiduong83/model-promotion-watcher:v1 . 
 kind load docker-image nthaiduong83/model-promotion-watcher:v1 --name datn-training1
 kubectl apply -f deployment.yaml

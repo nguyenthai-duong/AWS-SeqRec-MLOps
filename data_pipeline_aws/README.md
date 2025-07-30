@@ -1,131 +1,155 @@
-# Real-Time Data Pipeline Setup on AWS
+# Real-Time Data Pipeline on AWS
 
-This guide provides detailed instructions for setting up a data pipeline on AWS using RDS PostgreSQL, AWS Glue, Kinesis, DMS Serverless, and Lambda to support both batch processing and real-time data ingestion via Change Data Capture (CDC). The pipeline simulates an Online Transaction Processing (OLTP) system, processes the data, and stores engineered features in a feature store for downstream applications.
+A production-ready, end-to-end data pipeline for real-time and batch processing using AWS services: **RDS PostgreSQL, Glue, Kinesis, DMS Serverless, Lambda**, and integration with a feature store. This pipeline supports both OLTP simulation and real-time feature engineering for downstream ML applications.
+
+---
+
+## 📋 Table of Contents
+
+1. [Overview](#overview)
+2. [Prerequisites](#prerequisites)
+3. [Step 1: RDS PostgreSQL Setup](#step-1-rds-postgresql-setup)
+4. [Step 2: Database Initialization](#step-2-database-initialization)
+5. [Step 3: Data Preparation & Upload](#step-3-data-preparation--upload)
+6. [Step 4: Glue Data Quality Scripts](#step-4-glue-data-quality-scripts)
+7. [Step 5: AWS Glue Job Configuration](#step-5-aws-glue-job-configuration)
+8. [Step 6: Real-Time CDC Streaming](#step-6-real-time-cdc-streaming)
+9. [Step 7: DMS Task Setup](#step-7-dms-task-setup)
+10. [Drift Checker Service](#drift-checker-service)
+11. [Lambda for Real-Time Feature Store Update](#lambda-for-real-time-feature-store-update)
+12. [Demo Workflow](#demo-workflow)
+
+---
+
+## Overview
+
+This guide walks you through setting up a robust AWS-based data pipeline for both batch and streaming data, enabling real-time feature engineering and drift monitoring for ML systems.
+
+---
 
 ## Prerequisites
 
-- An AWS account with administrative privileges.
-- Basic familiarity with AWS services (RDS, Glue, Kinesis, DMS, S3).
-- Tools installed: DBeaver (for database management), AWS CLI (configured with appropriate credentials).
-- A local clone of the repository containing the necessary notebooks and scripts under `notebooks/` and `data_pipeline_aws/`.
+- AWS account with admin privileges
+- Familiarity with AWS (RDS, Glue, Kinesis, DMS, S3)
+- Tools: DBeaver, AWS CLI (configured)
+- Local clone of this repository
 
-## Step 1: Set Up RDS PostgreSQL
+---
 
-Create an RDS PostgreSQL instance with the following configuration:
+## Step 1: RDS PostgreSQL Setup
 
-- **Engine**: PostgreSQL 17.4-R1
-- **Template**: Free Tier
-- **DB Instance Identifier**: `simulate-oltp-db`
-- **Master Username**: `postgres`
-- **Master Password**: `postgres`
-- **Public Access**: Enabled (set to `Yes`)
+1. **Create RDS PostgreSQL instance**  
+   - Engine: PostgreSQL 17.4-R1  
+   - Template: Free Tier  
+   - DB Instance Identifier: `simulate-oltp-db`  
+   - Master Username/Password: `postgres`  
+   - Public Access: Yes
 
-![RDS Setup](../images/data_pipeline/rds.png)
+   ![RDS Setup](../images/data_pipeline/rds.png)
 
-Once the RDS instance is created, note the endpoint (e.g., `simulate-oltp-db.cdkwg6wyo7r8.ap-southeast-1.rds.amazonaws.com`).
+2. **Note the RDS endpoint** (e.g., `simulate-oltp-db.cdkwg6wyo7r8.ap-southeast-1.rds.amazonaws.com`)
 
-## Step 2: Create Databases
+---
 
-Connect to the RDS instance using DBeaver with the credentials provided above (`postgres`/`postgres`). Run the following SQL commands to create two databases:
+## Step 2: Database Initialization
+
+Connect to RDS using DBeaver and run:
 
 ```sql
 CREATE DATABASE raw_data;
 CREATE DATABASE registry_feature_store;
 ```
 
-- **`raw_data`**: Simulates an OLTP database for storing raw transactional data.
-- **`registry_feature_store`**: Stores the registry for the feature store.
+- `raw_data`: OLTP simulation
+- `registry_feature_store`: Feature store registry
 
 ![DBeaver Database Creation](../images/data_pipeline/dbeaver.png)
 
-## Step 3: Upload Data to `raw_data`
+---
 
-1. **Prepare Data**:
-   - Run the notebook `notebooks/01-prep-data.ipynb` to sample data from the raw dataset. This step filters users and items with a minimum number of interactions to create a clean dataset.
-   
-2. **Upload Data**:
-   - Run the notebook `notebooks/02-upload-data.ipynb` to upload the sampled data to the `raw_data` database, specifically to the `public.reviews` table.
-   - This notebook also uploads holdout data to an S3 bucket (`s3://recsys-ops/`) for testing the real-time CDC pipeline.
+## Step 3: Data Preparation & Upload
+
+1. **Prepare Data**  
+   - Run `notebooks/01-prep-data.ipynb` to sample and filter data.
+
+2. **Upload Data**  
+   - Run `notebooks/02-upload-data.ipynb` to upload to `raw_data.public.reviews` and S3 (`s3://recsys-ops/`).
 
 ![Data in RDS](../images/data_pipeline/data_in_rds.png)
 
-## Step 4: Upload Glue Data Quality Scripts to S3
+---
 
-Upload the AWS Glue Data Quality Definition Language (DQDL) files to S3 for data quality checks before loading data into the offline feature store:
+## Step 4: Glue Data Quality Scripts
+
+Upload DQDL scripts to S3:
 
 ```bash
 aws s3 cp data_pipeline_aws/glue_data_quality/parent_asin_stats.dqdl s3://recsys-ops/dq/parent_asin_stats.dqdl
 aws s3 cp data_pipeline_aws/glue_data_quality/user_stats.dqdl s3://recsys-ops/dq/user_stats.dqdl
 ```
 
-These scripts will be used by AWS Glue to validate data quality.
+---
 
-## Step 5: Configure AWS Glue Job
+## Step 5: AWS Glue Job Configuration
 
-Create an AWS Glue job (version 3.0, type: Spark) with the following job parameters:
+Create a Glue job (Spark 3.0) with parameters:
 
-| **Key**            | **Value**                                                                 |
-|--------------------|---------------------------------------------------------------------------|
-| `--AWS_REGION`     | `ap-southeast-1`                                                          |
-| `--DB_CONNECTION`  | `jdbc:postgresql://simulate-oltp-db.cdkwg6wyo7r8.ap-southeast-1.rds.amazonaws.com:5432/raw_data` |
-| `--DB_PASSWORD`    | `postgres`                                                                |
-| `--DB_USERNAME`    | `postgres`                                                                |
-| `--JOB_NAME`       | `FeastFeatureTransformJob`                                                |
-| `--S3_BUCKET`      | `recsys-ops`                                                              |
-| `--TABLE_NAME`     | `public.reviews`                                                          |
+| Key             | Value                                                                 |
+|-----------------|-----------------------------------------------------------------------|
+| --AWS_REGION    | ap-southeast-1                                                        |
+| --DB_CONNECTION | jdbc:postgresql://<RDS_ENDPOINT>:5432/raw_data                        |
+| --DB_PASSWORD   | postgres                                                              |
+| --DB_USERNAME   | postgres                                                              |
+| --JOB_NAME      | FeastFeatureTransformJob                                              |
+| --S3_BUCKET     | recsys-ops                                                            |
+| --TABLE_NAME    | public.reviews                                                        |
 
-This Glue job processes data from the `raw_data` database and transforms it into features for the feature store. The corresponding code resides in `data_pipeline_aws/glue.py`.
+- Glue job code: [`glue.py`](glue.py)
 
-## Step 6: Configure Streaming Data for CDC
+---
+
+## Step 6: Real-Time CDC Streaming
 
 ### 6.1 Update RDS Parameter Group
 
-To enable logical replication for real-time CDC, modify the RDS instance’s parameter group:
-
-1. In the RDS console, go to **Modify DB Instance** and select the parameter group.
-2. Update the parameter group with the following settings:
+Set parameters:
 
 ```
 rds.logical_replication = 1
 shared_preload_libraries = pg_stat_statements,pg_tle,pglogical
 ```
 
-3. Apply the updated parameter group to the RDS instance.
-4. Reboot the RDS instance to apply the changes.
+Reboot RDS after applying.
 
 ![Parameter Group Configuration](../images/data_pipeline/parameter_group.png)
 
 ### 6.2 Enable `pglogical` Extension
 
-Connect to the RDS instance using DBeaver or a similar tool and run the following SQL command to enable the `pglogical` extension:
-
 ```sql
 CREATE EXTENSION IF NOT EXISTS pglogical;
 ```
 
-### 6.3 Set Up Kinesis Data Stream
+### 6.3 Kinesis Data Stream
 
-1. Create a Kinesis Data Stream in the AWS console to handle streaming data.
+- Create a Kinesis Data Stream
+- Create VPC endpoint and security group for Kinesis
+
 ![Kinesis Data Stream](../images/data_pipeline/kinesis.png)
-2. Create a VPC endpoint for Kinesis to allow secure communication within the VPC.
-3. Add an HTTPS security group to the VPC endpoint for Kinesis to ensure secure connectivity.
 
-### 6.4 Configure AWS DMS Serverless
+### 6.4 AWS DMS Serverless
 
 #### 6.4.1 Create DMS Role
 
-Create an IAM role for AWS DMS with the necessary permissions for accessing the RDS instance and Kinesis stream.
+Create IAM role for DMS with access to RDS and Kinesis.
 
 ![DMS VPC Role](../images/data_pipeline/dms_vpc_role.png)
 
 #### 6.4.2 Create Source Endpoint
 
-Set up a source endpoint in AWS DMS for the RDS PostgreSQL database:
-
-- **Endpoint Type**: Source
-- **Database**: `raw_data`
-- **Connection Details**: Use the RDS endpoint, username (`postgres`), and password (`postgres`).
-- Test the connection to ensure it is successful.
+- Type: Source
+- Database: `raw_data`
+- Use RDS endpoint, username, password
+- Test connection
 
 ![Source Endpoint 1](../images/data_pipeline/src_endpoint1.png)
 ![Source Endpoint 2](../images/data_pipeline/src_endpoint2.png)
@@ -133,45 +157,37 @@ Set up a source endpoint in AWS DMS for the RDS PostgreSQL database:
 
 #### 6.4.3 Create Target Endpoint
 
-Set up a target endpoint in AWS DMS for the Kinesis Data Stream:
-
-- **Endpoint Type**: Target
-- **Service**: Kinesis
-- Test the connection to ensure it is successful.
+- Type: Target
+- Service: Kinesis
+- Test connection
 
 ![Target Endpoint 1](../images/data_pipeline/des_endpoint1.png)
 ![Target Endpoint 2](../images/data_pipeline/des_endpoint2.png)
 
-## Step 7: set up task
-![Target Endpoint 1](../images/data_pipeline/task1.png)
-![Target Endpoint 1](../images/data_pipeline/task2.png)
-![Target Endpoint 1](../images/data_pipeline/task3.png)
+---
 
+## Step 7: DMS Task Setup
 
+Create and start a DMS task to replicate data from RDS to Kinesis.
 
+![Task 1](../images/data_pipeline/task1.png)
+![Task 2](../images/data_pipeline/task2.png)
+![Task 3](../images/data_pipeline/task3.png)
 
-# Drift Checker Setup
+---
 
-This section describes how to build and run the **Drift Checker** service, which monitors data drift in real-time from a Kinesis stream and generates drift reports using Evidently. The reports are uploaded to S3 for further analysis.
+## Drift Checker Service
 
-## 1. Build Docker Image
+Monitor data drift in real-time from Kinesis and generate reports with Evidently.
 
-Navigate to the `check_drift` directory and build the Docker image:
+### 1. Build Docker Image
 
 ```bash
 cd check_drift
 docker build -t nthaiduong83/drift-checker:v2 .
 ```
 
-## 2. Run Drift Checker
-
-Run the container with the required environment variables. The service will:
-
-- Listen to the specified Kinesis stream (`STREAM_NAME`)
-- Periodically pull new records (`INTERVAL` in seconds)
-- Trigger a drift check after receiving at least `MIN_MESSAGES`
-- Use reference data from RDS (if `USE_RDS=1`)
-- Generate a drift report and upload it to S3
+### 2. Run Drift Checker
 
 ```bash
 docker run -it --rm \
@@ -194,20 +210,17 @@ docker run -it --rm \
   nthaiduong83/drift-checker:v2
 ```
 
-## 3. Output
-
-- The drift report is generated as an HTML file and uploaded to the specified S3 bucket and key.
-- Example output:
+- Generates drift report and uploads to S3.
 
 ![Drift Report Example](../images/data_pipeline/check_drift.png)
 
-# Lambda Setup for Real-Time Feature Store Update
+---
 
-This section guides you through building, pushing, and deploying the Lambda function that consumes records from Kinesis and updates the online feature store.
+## Lambda for Real-Time Feature Store Update
 
-## 1. Build and Push Lambda Container
+Consume Kinesis records and update the online feature store.
 
-Navigate to the Lambda source directory and build the Docker image:
+### 1. Build & Push Lambda Container
 
 ```bash
 cd data_pipeline_aws/lambda
@@ -219,27 +232,24 @@ docker push 796973475591.dkr.ecr.ap-southeast-1.amazonaws.com/datn/feast-lambda:
 export $(grep -v '^#' ../../.env | xargs)
 ```
 
-## 2. Deploy Lambda Function
+### 2. Deploy Lambda Function
 
-- Create a new Lambda function using the container image you just pushed.
-- Attach an IAM role with permissions to read from Kinesis and update the feature store.
-- Set the Lambda timeout to **1 minute** and increase memory as needed for your workload.
-- Add the following environment variable:
-
-  - **Key:** `REGISTRY_PATH`
-  - **Value:** `postgresql+psycopg2://postgres:postgres@<RDS_ENDPOINT>:5432/registry_feature_store`
-
-Replace `<RDS_ENDPOINT>` with your actual RDS endpoint.
+- Create Lambda from container image
+- Attach IAM role for Kinesis and feature store access
+- Set timeout: **1 minute**
+- Add env var:  
+  - `REGISTRY_PATH=postgresql+psycopg2://postgres:postgres@<RDS_ENDPOINT>:5432/registry_feature_store`
 
 ![Lambda Setup](../images/data_pipeline/lambda.png)
 
-## 3. Demo Workflow
+---
 
-1. **Preview new data to be updated**
-2. **Check the user's history in the online feature store**
-3. **Insert a new transaction for that user:**  
-   The pipeline is: insert into the `new_reviews` table in RDS, CDC is triggered via DMS, data is pushed to Kinesis, and Lambda is triggered to update the transaction in the online feature store.
-4. **Recheck the user's history to see the update**
+## Demo Workflow
+
+1. Preview new data to be updated
+2. Check user's history in the online feature store
+3. Insert new transaction (CDC → DMS → Kinesis → Lambda → Feature Store)
+4. Recheck user's history for update
 
 ![Feature Store Demo](../images/data_pipeline/feature_store.gif)
 

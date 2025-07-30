@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """
 Test script for Triton Inference Server ensemble model (single-item test)
 """
@@ -91,22 +88,22 @@ def main():
     # Create Triton client
     try:
         client = InferenceServerClient(url=TRITON_URL)
-        logger.info("✅ Connected to Triton server at %s", TRITON_URL)
+        logger.info("Connected to Triton server at %s", TRITON_URL)
     except Exception as e:
-        logger.error("❌ Failed to connect to Triton server: %s", e)
+        logger.error("Failed to connect to Triton server: %s", e)
         raise
 
     # Check server and model status
     try:
         if not client.is_server_live():
-            logger.error("❌ Triton server is not live")
+            logger.error("Triton server is not live")
             raise RuntimeError("Triton server is not live")
         if not client.is_model_ready(MODEL_NAME):
-            logger.error("❌ Model %s is not ready", MODEL_NAME)
+            logger.error("Model %s is not ready", MODEL_NAME)
             raise RuntimeError(f"Model {MODEL_NAME} is not ready")
-        logger.info("✅ Server live and model %s ready", MODEL_NAME)
+        logger.info("Server live and model %s ready", MODEL_NAME)
     except Exception as e:
-        logger.error("❌ Error checking server/model status: %s", e)
+        logger.error("Error checking server/model status: %s", e)
         raise
 
     # Prepare inputs
@@ -130,7 +127,7 @@ def main():
             inputs.append(infer_input)
             logger.debug("Input %s: shape=%s, dtype=%s", name, data.shape, data_type)
     except Exception as e:
-        logger.error("❌ Error creating inputs: %s", e)
+        logger.error("Error creating inputs: %s", e)
         raise
 
     # Define output
@@ -140,9 +137,9 @@ def main():
     try:
         response = client.infer(model_name=MODEL_NAME, inputs=inputs, outputs=outputs)
         output = response.as_numpy("output")
-        logger.info("✅ Inference Output: %s", output)
+        logger.info("Inference Output: %s", output)
     except Exception as e:
-        logger.error("❌ Inference failed: %s", e)
+        logger.error("Inference failed: %s", e)
         raise
 
 if __name__ == "__main__":

@@ -35,12 +35,12 @@ WORKDIR /app
 COPY uv.lock pyproject.toml ./
 
 RUN uv sync --group features --group pipeline
-# 2) Bật venv cho mọi lệnh Python/Papermill
+
+# Bật venv cho mọi lệnh Python/Papermill
 ENV VIRTUAL_ENV=/app/.venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 ENV PYTHONPATH="$VIRTUAL_ENV/lib/python3.11/site-packages"
 
-# 3) Đăng ký kernel trỏ đúng venv-Python
 RUN /app/.venv/bin/python -m ipykernel install --name python3 \
       --display-name "Python 3 (venv)" --prefix=/usr/local
 COPY src/ ./src/

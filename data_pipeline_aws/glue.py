@@ -2,7 +2,6 @@ import json
 import logging
 import sys
 from datetime import datetime
-
 import boto3
 from awsglue.context import GlueContext
 from awsglue.dynamicframe import DynamicFrame
@@ -14,25 +13,61 @@ from pyspark.sql import functions as F
 from pyspark.sql.types import ArrayType, IntegerType, StringType
 from pyspark.sql.window import Window
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-# Retrieve Glue Job Parameters
-args = getResolvedOptions(
-    sys.argv,
-    [
-        "JOB_NAME",
-        "S3_BUCKET",
-        "DB_CONNECTION",
-        "TABLE_NAME",
-        "AWS_REGION",
-        "DB_USERNAME",
-        "DB_PASSWORD",
-    ],
-)
+def configure_logging():
+    """
+    Configures the logging system with INFO level and a standardized format.
 
-# Assign parameters to variables
+    Returns:
+        logging.Logger: Configured logger instance.
+    """
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    return logging.getLogger(__name__)
+
+
+def initialize_spark_session():
+    """
+    Initializes a Spark session with optimized configurations for the Glue job.
+
+    Returns:
+        SparkSession: Configured Spark session.
+    """
+    return (
+        SparkSession.builder.appName("FeastFeatureTransform")
+        .config("spark.sql.adaptive.enabled", "true")
+        .config("spark.sql.adaptive.skewJoin.enabled", "true")
+        .config("spark.executor.heartbeatInterval", "60s")
+        .config("spark.network.timeout", "600s")
+        .config("spark.driver.memory", "10g")
+        .config("spark.executor.memory", "10g")
+        .config("spark.sql.shuffle.partitions", "200")
+        .getOrCreate()
+    )
+
+
+def get_job_parameters():
+    """
+    Retrieves and returns Glue job parameters from command-line arguments.
+
+    Returns:
+        dict: Dictionary containing job parameters (JOB_NAME, S3_BUCKET, DB_CONNECTION, etc.).
+    """
+    return getResolvedOptions(
+        sys.argv,
+        [
+            "JOB_NAME",
+            "S3_BUCKET",
+            "DB_CONNECTION",
+            "TABLE_NAME",
+            "AWS_REGION",
+            "DB_USERNAME",
+            "DB_PASSWORD",
+        ],
+    )
+
+
+logger = configure_logging()
+args = get_job_parameters()
 JOB_NAME = args["JOB_NAME"]
 S3_BUCKET = args["S3_BUCKET"]
 DB_CONNECTION = args["DB_CONNECTION"]
@@ -41,36 +76,29 @@ AWS_REGION = args["AWS_REGION"]
 DB_USERNAME = args["DB_USERNAME"]
 DB_PASSWORD = args["DB_PASSWORD"]
 
-# Initialize Spark session with optimized configurations
-spark = (
-    SparkSession.builder.appName("FeastFeatureTransform")
-    .config("spark.sql.adaptive.enabled", "true")
-    .config("spark.sql.adaptive.skewJoin.enabled", "true")
-    .config("spark.executor.heartbeatInterval", "60s")
-    .config("spark.network.timeout", "600s")
-    .config("spark.driver.memory", "10g")
-    .config("spark.executor.memory", "10g")
-    .config("spark.sql.shuffle.partitions", "200")
-    .getOrCreate()
-)
-
+spark = initialize_spark_session()
 glueContext = GlueContext(spark.sparkContext)
 job = Job(glueContext)
 job.init(JOB_NAME, args)
 
 
-# HELPER FUNCTIONS
 def convert_categories(categories):
-    """Convert categories string/set to list."""
+    """
+    Converts a categories string or set to a list for consistent processing.
+
+    Args:
+        categories: Input categories, which may be a string, set, tuple, or list.
+
+    Returns:
+        list: List of category strings.
+    """
     if not categories:
         return []
-
     if isinstance(categories, str):
         if categories.startswith("{") and categories.endswith("}"):
             cleaned = categories.strip("{}")
             if cleaned:
-                items = [item.strip().strip('"') for item in cleaned.split(",")]
-                return items
+                return [item.strip().strip('"') for item in cleaned.split(",")]
             return []
         try:
             parsed = json.loads(categories)
@@ -91,9 +119,17 @@ def convert_categories(categories):
 convert_categories_udf = F.udf(convert_categories, ArrayType(StringType()))
 
 
-# LOAD DATA
 def load_data():
-    """Load data from PostgreSQL with error handling."""
+    """
+    Loads data from a PostgreSQL database using Glue DynamicFrame.
+
+    Returns:
+        pyspark.sql.DataFrame: Loaded DataFrame with an additional 'timestamp_unix' column.
+
+    Raises:
+        ValueError: If the query returns an empty result set.
+        Exception: If data loading fails.
+    """
     try:
         dynamic_frame = glueContext.create_dynamic_frame.from_options(
             connection_type="postgresql",
@@ -106,11 +142,9 @@ def load_data():
             },
             transformation_ctx="load_data",
         )
-
         if dynamic_frame.count() == 0:
             logger.error("No data returned from the query")
             raise ValueError("Query returned empty result set")
-
         df = dynamic_frame.toDF()
         df = df.withColumn(
             "timestamp_unix",
@@ -123,24 +157,31 @@ def load_data():
         raise
 
 
-# TRANSFORMATION LOGIC
 def transform_parent_asin(df):
-    """Transform data for parent_asin features."""
+    """
+    Transforms data to compute parent ASIN features, including aggregations and time-based metrics.
+
+    Args:
+        df (pyspark.sql.DataFrame): Input DataFrame containing raw data.
+
+    Returns:
+        pyspark.sql.DataFrame: Transformed DataFrame with parent ASIN features.
+
+    Raises:
+        Exception: If transformation fails.
+    """
     try:
         window_latest = Window.partitionBy("parent_asin", "timestamp").orderBy(
             F.col("timestamp_unix").desc()
         )
-
         df_with_rn = (
             df.withColumn("rn", F.row_number().over(window_latest))
             .filter(F.col("rn") == 1)
             .drop("rn")
         )
-
         df_with_clean_price = df_with_rn.withColumn(
             "price_clean", F.col("price").cast(StringType())
         )
-
         aggregated_df = df_with_clean_price.groupBy(
             "parent_asin", "timestamp", "timestamp_unix"
         ).agg(
@@ -151,13 +192,11 @@ def transform_parent_asin(df):
             F.first("price_clean").alias("price"),
             F.first("rating").alias("rating"),
         )
-
         window_fn = (
             lambda days: Window.partitionBy("parent_asin")
             .orderBy("timestamp_unix")
             .rangeBetween(-days * 86400000, -1)
         )
-
         result_df = aggregated_df.select(
             "parent_asin",
             F.col("timestamp").alias("event_timestamp"),
@@ -165,23 +204,14 @@ def transform_parent_asin(df):
             F.array_distinct(F.col("categories")).alias("categories"),
             F.col("price").cast(StringType()).alias("price"),
             F.count("*").over(window_fn(365)).alias("parent_asin_rating_cnt_365d"),
-            F.avg("rating")
-            .over(window_fn(365))
-            .alias("parent_asin_rating_avg_prev_rating_365d"),
+            F.avg("rating").over(window_fn(365)).alias("parent_asin_rating_avg_prev_rating_365d"),
             F.count("*").over(window_fn(90)).alias("parent_asin_rating_cnt_90d"),
-            F.avg("rating")
-            .over(window_fn(90))
-            .alias("parent_asin_rating_avg_prev_rating_90d"),
+            F.avg("rating").over(window_fn(90)).alias("parent_asin_rating_avg_prev_rating_90d"),
             F.count("*").over(window_fn(30)).alias("parent_asin_rating_cnt_30d"),
-            F.avg("rating")
-            .over(window_fn(30))
-            .alias("parent_asin_rating_avg_prev_rating_30d"),
+            F.avg("rating").over(window_fn(30)).alias("parent_asin_rating_avg_prev_rating_30d"),
             F.count("*").over(window_fn(7)).alias("parent_asin_rating_cnt_7d"),
-            F.avg("rating")
-            .over(window_fn(7))
-            .alias("parent_asin_rating_avg_prev_rating_7d"),
+            F.avg("rating").over(window_fn(7)).alias("parent_asin_rating_avg_prev_rating_7d"),
         ).distinct()
-
         logger.info(f"Transformed parent_asin data: {result_df.count()} rows")
         return result_df
     except Exception as e:
@@ -190,24 +220,32 @@ def transform_parent_asin(df):
 
 
 def bucketize_seconds_diff(seconds):
-    """Bucketize time differences."""
-    if seconds < 60 * 10:
+    """
+    Assigns a time bucket to a time difference (in seconds) based on predefined intervals.
+
+    Args:
+        seconds (int): Time difference in seconds.
+
+    Returns:
+        int: Time bucket index (0-9) based on the time difference.
+    """
+    if seconds < 60 * 10:  # 10 minutes
         return 0
-    if seconds < 60 * 60:
+    if seconds < 60 * 60:  # 1 hour
         return 1
-    if seconds < 60 * 60 * 24:
+    if seconds < 60 * 60 * 24:  # 1 day
         return 2
-    if seconds < 60 * 60 * 24 * 7:
+    if seconds < 60 * 60 * 24 * 7:  # 1 week
         return 3
-    if seconds < 60 * 60 * 24 * 30:
+    if seconds < 60 * 60 * 24 * 30:  # 1 month
         return 4
-    if seconds < 60 * 60 * 24 * 365:
+    if seconds < 60 * 60 * 24 * 365:  # 1 year
         return 5
-    if seconds < 60 * 60 * 24 * 365 * 3:
+    if seconds < 60 * 60 * 24 * 365 * 3:  # 3 years
         return 6
-    if seconds < 60 * 60 * 24 * 365 * 5:
+    if seconds < 60 * 60 * 24 * 365 * 5:  # 5 years
         return 7
-    if seconds < 60 * 60 * 24 * 365 * 10:
+    if seconds < 60 * 60 * 24 * 365 * 10:  # 10 years
         return 8
     return 9
 
@@ -226,10 +264,19 @@ calc_bucket_udf = F.udf(calc_sequence_timestamp_bucket, ArrayType(IntegerType())
 
 
 def pad_timestamp_sequence(inp, sequence_length=10, padding_value=-1):
-    """Pad timestamp sequence."""
+    """
+    Pads a timestamp sequence to a fixed length, converting ISO timestamps to Unix timestamps.
+
+    Args:
+        inp (str): Comma-separated string of ISO timestamps.
+        sequence_length (int): Desired length of the sequence. Defaults to 10.
+        padding_value (int): Value to use for padding. Defaults to -1.
+
+    Returns:
+        list: Padded list of Unix timestamps.
+    """
     if inp is None or inp.strip() == "":
         return [padding_value] * sequence_length
-
     try:
         timestamps = [x.strip() for x in inp.split(",") if x.strip()]
         inp_list = []
@@ -257,18 +304,27 @@ pad_timestamp_udf = F.udf(pad_timestamp_sequence, ArrayType(IntegerType()))
 
 
 def transform_user(df):
-    """Transform data for user features."""
+    """
+    Transforms data to compute user features, including recent ASINs and timestamp buckets.
+
+    Args:
+        df (pyspark.sql.DataFrame): Input DataFrame containing raw data.
+
+    Returns:
+        pyspark.sql.DataFrame: Transformed DataFrame with user features.
+
+    Raises:
+        Exception: If transformation fails.
+    """
     try:
         w_90d = (
             Window.partitionBy("user_id")
             .orderBy("timestamp_unix")
             .rangeBetween(-90 * 86400000, -1)
         )
-
         w_recent = (
             Window.partitionBy("user_id").orderBy("timestamp_unix").rowsBetween(-10, -1)
         )
-
         transformed_df = df.select(
             "user_id",
             F.col("timestamp").alias("event_timestamp"),
@@ -288,7 +344,6 @@ def transform_user(df):
                 ).over(w_recent),
             ).alias("user_rating_list_10_recent_asin_timestamp"),
         )
-
         transformed_df = transformed_df.withColumn(
             "item_sequence_ts",
             pad_timestamp_udf(F.col("user_rating_list_10_recent_asin_timestamp")),
@@ -296,17 +351,14 @@ def transform_user(df):
             "item_sequence_ts_bucket",
             calc_bucket_udf(F.col("item_sequence_ts"), F.col("timestamp_unix")),
         )
-
         window_dedup = Window.partitionBy("user_id", "event_timestamp").orderBy(
             F.size(F.split("user_rating_list_10_recent_asin", ",")).desc()
         )
-
         result_df = (
             transformed_df.withColumn("dedup_rn", F.row_number().over(window_dedup))
             .filter(F.col("dedup_rn") == 1)
             .drop("dedup_rn", "timestamp_unix")
         )
-
         logger.info(f"Transformed user data: {result_df.count()} rows")
         return result_df
     except Exception as e:
@@ -314,43 +366,47 @@ def transform_user(df):
         raise
 
 
-# SPLIT TRAIN AND VAL
 def split_train_val(df):
-    """Split data into train and validation sets."""
+    """
+    Splits data into training and validation sets based on the 'source' column.
+
+    Args:
+        df (pyspark.sql.DataFrame): Input DataFrame with a 'source' column.
+
+    Returns:
+        tuple: (train_df, val_df) containing the training and validation DataFrames.
+
+    Raises:
+        ValueError: If validation set contains items or users not present in the training set.
+        Exception: If splitting fails.
+    """
     try:
         train_df = df.filter(F.col("source") == "train").drop("source")
         val_df = df.filter(F.col("source") == "val").drop("source")
         logger.info(f"Train set size: {train_df.count()}")
         logger.info(f"Validation set size: {val_df.count()}")
-
-        # Validate train and validation sets
         train_min_max = train_df.select(
             F.min("timestamp").alias("min_timestamp"),
             F.max("timestamp").alias("max_timestamp"),
         ).collect()[0]
-
         val_min_max = val_df.select(
             F.min("timestamp").alias("min_timestamp"),
             F.max("timestamp").alias("max_timestamp"),
         ).collect()[0]
-
         logger.info(
             f"Train timestamp range: {train_min_max['min_timestamp']} to {train_min_max['max_timestamp']}"
         )
         logger.info(
             f"Val timestamp range: {val_min_max['min_timestamp']} to {val_min_max['max_timestamp']}"
         )
-
         train_items = train_df.select("parent_asin").distinct()
         val_items = val_df.select("parent_asin").distinct()
         items_not_in_train = val_items.join(train_items, "parent_asin", "left_anti")
         num_missing_items = items_not_in_train.count()
-
         train_users = train_df.select("user_id").distinct()
         val_users = val_df.select("user_id").distinct()
         users_not_in_train = val_users.join(train_users, "user_id", "left_anti")
         num_missing_users = users_not_in_train.count()
-
         if num_missing_items > 0:
             logger.error(
                 f"Found {num_missing_items} items in validation set that do not appear in training set!"
@@ -358,7 +414,6 @@ def split_train_val(df):
             raise ValueError(
                 f"Found {num_missing_items} items in validation set that do not appear in training set!"
             )
-
         if num_missing_users > 0:
             logger.error(
                 f"Found {num_missing_users} users in validation set that do not appear in training set!"
@@ -366,30 +421,32 @@ def split_train_val(df):
             raise ValueError(
                 f"Found {num_missing_users} users in validation set that do not appear in training set!"
             )
-
         return train_df, val_df
     except Exception as e:
         logger.error(f"Failed to split train and validation data: {str(e)}")
         raise
 
 
-# CHECK AND DELETE S3 FOLDER
 def check_and_delete_s3_folder(s3_client, bucket, prefix):
-    """Check and delete S3 folder if it exists."""
+    """
+    Checks and deletes all objects in an S3 folder if it exists.
+
+    Args:
+        s3_client (boto3.client): S3 client instance.
+        bucket (str): S3 bucket name.
+        prefix (str): S3 folder prefix.
+
+    Raises:
+        Exception: If checking or deleting fails.
+    """
     try:
         if not prefix.endswith("/"):
             prefix = prefix + "/"
-
         logger.info(f"Checking if objects exist in s3://{bucket}/{prefix}")
-
         response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
-
         if "Contents" in response and len(response["Contents"]) > 0:
-            logger.info(
-                f"Objects found in s3://{bucket}/{prefix}. Deleting all objects..."
-            )
+            logger.info(f"Objects found in s3://{bucket}/{prefix}. Deleting all objects...")
             objects_to_delete = [{"Key": obj["Key"]} for obj in response["Contents"]]
-
             while response.get("IsTruncated", False):
                 response = s3_client.list_objects_v2(
                     Bucket=bucket,
@@ -399,13 +456,10 @@ def check_and_delete_s3_folder(s3_client, bucket, prefix):
                 objects_to_delete.extend(
                     [{"Key": obj["Key"]} for obj in response.get("Contents", [])]
                 )
-
             s3_client.delete_objects(
                 Bucket=bucket, Delete={"Objects": objects_to_delete, "Quiet": True}
             )
-            logger.info(
-                f"Deleted {len(objects_to_delete)} objects from s3://{bucket}/{prefix}"
-            )
+            logger.info(f"Deleted {len(objects_to_delete)} objects from s3://{bucket}/{prefix}")
         else:
             logger.info(f"No objects found in s3://{bucket}/{prefix}")
     except Exception as e:
@@ -413,13 +467,20 @@ def check_and_delete_s3_folder(s3_client, bucket, prefix):
         raise
 
 
-# WRITE TO S3
 def write_to_s3(df, prefix):
-    """Write DataFrame to S3 in Parquet format."""
+    """
+    Writes a DataFrame to S3 in Parquet format, overwriting existing data.
+
+    Args:
+        df (pyspark.sql.DataFrame): DataFrame to write.
+        prefix (str): S3 prefix for the output path.
+
+    Raises:
+        Exception: If writing to S3 fails.
+    """
     try:
         s3_client = boto3.client("s3", region_name=AWS_REGION)
         check_and_delete_s3_folder(s3_client, S3_BUCKET, prefix)
-
         dynamic_frame = DynamicFrame.fromDF(df, glueContext, "dynamic_frame")
         glueContext.write_dynamic_frame.from_options(
             frame=dynamic_frame,
@@ -439,12 +500,37 @@ def write_to_s3(df, prefix):
 
 
 def read_ruleset_s3(path: str) -> str:
+    """
+    Reads a DQDL ruleset from an S3 path.
+
+    Args:
+        path (str): S3 path to the ruleset file.
+
+    Returns:
+        str: Contents of the ruleset file.
+
+    Raises:
+        Exception: If reading from S3 fails.
+    """
     s3 = boto3.client("s3")
     bucket, key = path.replace("s3://", "").split("/", 1)
     return s3.get_object(Bucket=bucket, Key=key)["Body"].read().decode("utf-8")
 
 
 def run_dqdl_check(df, ruleset_s3_path, glueContext, logger, name):
+    """
+    Runs a Data Quality Definition Language (DQDL) check on a DataFrame.
+
+    Args:
+        df (pyspark.sql.DataFrame): Input DataFrame to check.
+        ruleset_s3_path (str): S3 path to the DQDL ruleset file.
+        glueContext (GlueContext): Glue context for DynamicFrame operations.
+        logger (logging.Logger): Logger instance for logging messages.
+        name (str): Name of the data quality check for logging and context.
+
+    Raises:
+        Exception: If any DQDL rules fail.
+    """
     dynf = DynamicFrame.fromDF(df, glueContext, f"dq_{name}")
     dqdl = read_ruleset_s3(ruleset_s3_path)
     dqf = EvaluateDataQuality.apply(
@@ -459,7 +545,6 @@ def run_dqdl_check(df, ruleset_s3_path, glueContext, logger, name):
     results_df = dqf.toDF()
     fails = results_df.filter(F.col("Outcome") != "Passed")
     fails.show(truncate=False)
-
     for r in fails.collect():
         rule = r["Rule"] if "Rule" in r else str(r)
         outcome = r["Outcome"] if "Outcome" in r else "Unknown"
@@ -476,13 +561,18 @@ def run_dqdl_check(df, ruleset_s3_path, glueContext, logger, name):
     logger.info(f"[DQDL][{name}] All rules passed")
 
 
-# MAIN EXECUTION
 def main():
-    try:
-        # Load data
-        df = load_data()
+    """
+    Main execution logic for the Glue job to process and transform data for Feast feature store.
 
-        # Check for duplicates
+    Loads data from PostgreSQL, performs transformations, splits into train/validation sets,
+    applies data quality checks, and writes results to S3.
+
+    Raises:
+        Exception: If any step in the process fails.
+    """
+    try:
+        df = load_data()
         duplicate_check = df.groupBy(
             "user_id",
             "parent_asin",
@@ -508,14 +598,9 @@ def main():
                 ]
             )
             logger.info(f"After removing duplicates: {df.count()} rows")
-
-        # Split train and validation data
         train_df, val_df = split_train_val(df)
-
-        # Transform data
         parent_asin_df = transform_parent_asin(df)
         user_df = transform_user(df)
-
         run_dqdl_check(
             parent_asin_df,
             f"s3://{S3_BUCKET}/dq/parent_asin_stats.dqdl",
@@ -530,8 +615,6 @@ def main():
             logger,
             "user_stats",
         )
-
-        # Check for duplicates in parent_asin_df
         duplicate_check = parent_asin_df.groupBy(
             "parent_asin", "event_timestamp"
         ).count()
@@ -539,13 +622,10 @@ def main():
         if duplicates.count() > 0:
             logger.warning("Found duplicate records after parent_asin aggregation!")
             duplicates.show()
-
-        # Write to S3 with exact paths from local code
         write_to_s3(train_df, "feature-store/train/train.parquet")
         write_to_s3(val_df, "feature-store/val/val.parquet")
         write_to_s3(parent_asin_df, "feature-store/parent_asin_rating_stats")
         write_to_s3(user_df, "feature-store/user_rating_stats")
-
         logger.info("Job completed successfully")
     except Exception as e:
         logger.error(f"Job failed: {str(e)}")

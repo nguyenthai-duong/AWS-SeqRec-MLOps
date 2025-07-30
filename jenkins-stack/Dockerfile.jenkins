@@ -32,7 +32,6 @@ RUN conda run -n datn pip install \
     scikit-learn==1.6.1 \
     uv==0.6.2
 
-# Đảm bảo user jenkins có quyền docker
 RUN usermod -aG docker jenkins
 
 USER jenkins

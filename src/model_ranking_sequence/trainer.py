@@ -11,11 +11,11 @@ from evidently.metrics import FBetaTopKMetric, NDCGKMetric, PersonalizationMetri
 from evidently.pipeline.column_mapping import ColumnMapping
 from evidently.report import Report
 from loguru import logger
-from model import Ranker
+from model_ranking_sequence.model import Ranker
 from pydantic import BaseModel
 from torch import nn
 from torchmetrics import AUROC
-from viz import color_scheme
+from model_ranking_sequence.viz import color_scheme
 
 sys.path.insert(0, "..")
 from id_mapper import IDMapper

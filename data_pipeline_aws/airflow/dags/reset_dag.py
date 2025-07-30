@@ -1,6 +1,5 @@
 import os
 from datetime import datetime
-
 import boto3
 import dotenv
 from airflow import DAG
@@ -10,23 +9,38 @@ from sqlalchemy import create_engine
 
 
 def get_engine():
+    """
+    Creates and returns a SQLAlchemy engine for connecting to the PostgreSQL database.
+
+    Returns:
+        sqlalchemy.engine.Engine: A SQLAlchemy engine instance connected to the raw_data database.
+    """
     return create_engine(
         "postgresql://postgres:postgres@simulate-oltp-db.cdkwg6wyo7r8.ap-southeast-1.rds.amazonaws.com:5432/raw_data"
     )
 
 
 def reset_and_pull():
-    # 1. Xóa toàn bộ dữ liệu trong bảng new_reviews
+    """
+    Performs three main tasks:
+    1. Truncates the new_reviews table in the PostgreSQL database.
+    2. Resets the Airflow Variable 'current_index' to 0.
+    3. Downloads the holdout.parquet file from an S3 bucket to a local path.
+
+    Raises:
+        Exception: If any step (truncate, reset, or download) fails, an exception is raised with an error message.
+    """
+    # 1. Truncate the new_reviews table
     try:
         engine = get_engine()
         with engine.begin() as conn:
             conn.execute("TRUNCATE TABLE public.new_reviews;")
-        print("✅ Đã xóa toàn bộ dữ liệu trong bảng new_reviews!")
+        print("Successfully truncated the new_reviews table!")
     except Exception as e:
         print(f"Error truncating table new_reviews: {e}")
         raise
 
-    # 2. Reset Variable
+    # 2. Reset Airflow Variable
     try:
         Variable.set("current_index", 0)
         print("current_index reset to 0")
@@ -34,7 +48,7 @@ def reset_and_pull():
         print(f"Error resetting current_index: {e}")
         raise
 
-    # 3. Pull file từ S3 về local
+    # 3. Download file from S3 to local
     try:
         dotenv.load_dotenv("/opt/airflow/.env", override=True)
 
@@ -60,7 +74,7 @@ def reset_and_pull():
         )
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
         s3.download_file(s3_bucket, s3_key, local_path)
-        print("✅ Đã tải xong holdout.parquet từ S3!")
+        print("Successfully downloaded holdout.parquet from S3!")
     except Exception as e:
         print(f"Error downloading file from S3: {e}")
         raise
@@ -71,8 +85,8 @@ with DAG(
     start_date=datetime(2025, 4, 5),
     schedule_interval=None,
     catchup=False,
-    max_active_runs=1,  # Tránh race condition
-    description="Reset index, xóa dữ liệu new_reviews và pull file holdout.parquet mới nhất từ S3",
+    max_active_runs=1,
+    description="Resets the current_index, truncates the new_reviews table, and downloads the latest holdout.parquet file from S3",
 ) as dag:
     reset_and_pull_task = PythonOperator(
         task_id="reset_and_pull",

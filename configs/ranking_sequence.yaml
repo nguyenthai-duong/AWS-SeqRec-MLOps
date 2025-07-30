@@ -7,8 +7,7 @@ aws:
 
 # Ray configuration
 ray:
-  # address: "ray://raycluster-kuberay-head-svc:10001"
-  address: "ray://localhost:10001"
+  address: "ray://raycluster-kuberay-head-svc:10001"
 
 # Data paths
 data:
@@ -38,7 +37,7 @@ dataset:
 
 # Training configuration
 training:
-  max_epochs: 1
+  max_epochs: 15
   num_workers: 2
   batch_size: 256
   learning_rate: 1e-3
@@ -67,7 +66,7 @@ item2vec:
 tune:
   metric: "val_roc_auc"
   mode: "max"
-  num_samples: 1
+  num_samples: 10
   learning_rate:
     min: 1e-5
     max: 1e-2

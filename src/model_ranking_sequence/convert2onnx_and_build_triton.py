@@ -15,14 +15,10 @@ try:
     import onnx
     from onnx import checker
 except ImportError:
-    raise ImportError(
-        "Please install the 'onnx' package to run this script: pip install onnx"
-    )
+    raise ImportError("Please install the 'onnx' package to run this script: pip install onnx")
 
 # Logging setup
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # MinIO and MLflow setup
@@ -57,9 +53,13 @@ DYNAMIC_AXES = {
 }
 
 
-# S3/MinIO connection testing
 def test_s3_connection():
-    logger.info("⏳ Testing MinIO connection...")
+    """Tests the connection to the MinIO S3-compatible storage.
+
+    Raises:
+        Exception: If the connection to MinIO fails.
+    """
+    logger.info("Testing MinIO connection...")
     s3 = boto3.client(
         "s3",
         endpoint_url=MINIO_EP,
@@ -81,6 +81,14 @@ boto_session = boto3.session.Session(
 
 
 def patched_get_s3_client(self):
+    """Patches the S3 client to use the specified MinIO endpoint.
+
+    Args:
+        self: Instance of the S3ArtifactRepository.
+
+    Returns:
+        boto3.client: Configured S3 client.
+    """
     return boto_session.client("s3", endpoint_url=MINIO_EP)
 
 
@@ -91,23 +99,47 @@ logger.info(
 )
 
 
-# Wrapper to adjust shapes for Triton export
 class TritonModelWrapper(torch.nn.Module):
+    """Wraps a PyTorch model for Triton inference, adjusting input shapes.
+
+    Args:
+        model (torch.nn.Module): The PyTorch model to wrap.
+    """
+
     def __init__(self, model: torch.nn.Module):
         super().__init__()
         self.model = model
 
-    def forward(
-        self, user_ids, input_seq, input_seq_ts_bucket, item_features, target_item
-    ):
+    def forward(self, user_ids, input_seq, input_seq_ts_bucket, item_features, target_item):
+        """Forward pass for the wrapped model.
+
+        Args:
+            user_ids (torch.Tensor): User ID tensor.
+            input_seq (torch.Tensor): Input sequence tensor.
+            input_seq_ts_bucket (torch.Tensor): Sequence timestamp bucket tensor.
+            item_features (torch.Tensor): Item features tensor.
+            target_item (torch.Tensor): Target item tensor.
+
+        Returns:
+            torch.Tensor: Model output.
+        """
         user_ids = user_ids.squeeze(1)
         target_item = target_item.squeeze(1)
-        return self.model(
-            user_ids, input_seq, input_seq_ts_bucket, item_features, target_item
-        )
+        return self.model(user_ids, input_seq, input_seq_ts_bucket, item_features, target_item)
 
 
 def find_champion_version(model_name: str) -> str:
+    """Finds the champion version of the specified model in MLflow.
+
+    Args:
+        model_name (str): Name of the model in MLflow.
+
+    Returns:
+        str: The version of the champion model or the latest version if no champion is found.
+
+    Raises:
+        ValueError: If no model versions are found.
+    """
     client = MlflowClient()
     versions = client.search_model_versions(f"name = '{model_name}'")
     for v in versions:
@@ -123,7 +155,15 @@ def find_champion_version(model_name: str) -> str:
 
 
 def validate_pipeline_feature_size(pipeline, expected_size: int = 416) -> int:
-    """Validate the feature size output by the item metadata pipeline."""
+    """Validates the feature size output by the item metadata pipeline.
+
+    Args:
+        pipeline: The item metadata pipeline object.
+        expected_size (int, optional): Expected feature size. Defaults to 416.
+
+    Returns:
+        int: The actual feature size output by the pipeline.
+    """
     logger.info("Validating item metadata pipeline feature size...")
     dummy_data = pd.DataFrame(
         {
@@ -145,17 +185,29 @@ def validate_pipeline_feature_size(pipeline, expected_size: int = 416) -> int:
     feature_size = features.shape[1]
     logger.info("Item metadata pipeline feature size: %d", feature_size)
     if feature_size != expected_size:
-        logger.warning(
-            "Feature size mismatch: expected %d, got %d", expected_size, feature_size
-        )
+        logger.warning("Feature size mismatch: expected %d, got %d", expected_size, feature_size)
     return feature_size
 
 
 def load_model_and_artifacts(model_name: str):
+    """Loads the model and its artifacts from MLflow.
+
+    Args:
+        model_name (str): Name of the model in MLflow.
+
+    Returns:
+        tuple: (model, id_mapper, item_pipeline) containing the loaded PyTorch model,
+               IDMapper, and item metadata pipeline.
+
+    Raises:
+        Exception: If loading the model or artifacts fails.
+        FileNotFoundError: If required artifact files are not found.
+        ValueError: If loaded artifacts are invalid.
+    """
     client = MlflowClient()
     version = find_champion_version(model_name)
     model_uri = f"models:/{model_name}/{version}"
-    logger.info("🔗 Loading model from: %s", model_uri)
+    logger.info("Loading model from: %s", model_uri)
 
     try:
         model = mlflow.pytorch.load_model(model_uri)
@@ -177,9 +229,7 @@ def load_model_and_artifacts(model_name: str):
 
     # Download and copy IDMapper
     try:
-        idm_path = mlflow.artifacts.download_artifacts(
-            run_id=run_id, artifact_path="id_mapper/id_mapper.pkl"
-        )
+        idm_path = mlflow.artifacts.download_artifacts(run_id=run_id, artifact_path="id_mapper/id_mapper.pkl")
         if not os.path.isfile(idm_path):
             raise FileNotFoundError(f"IDMapper not found at {idm_path}")
         shutil.copy2(idm_path, os.path.join(id_mapper_dir, "id_mapper.pkl"))
@@ -199,23 +249,16 @@ def load_model_and_artifacts(model_name: str):
     # Download and copy item_metadata_pipeline
     try:
         pipeline_path = mlflow.artifacts.download_artifacts(
-            run_id=run_id,
-            artifact_path="item_metadata_pipeline/item_metadata_pipeline.pkl",
+            run_id=run_id, artifact_path="item_metadata_pipeline/item_metadata_pipeline.pkl"
         )
         if not os.path.isfile(pipeline_path):
-            raise FileNotFoundError(
-                f"Item metadata pipeline not found at {pipeline_path}"
-            )
-        shutil.copy2(
-            pipeline_path, os.path.join(item_pipeline_dir, "item_metadata_pipeline.pkl")
-        )
+            raise FileNotFoundError(f"Item metadata pipeline not found at {pipeline_path}")
+        shutil.copy2(pipeline_path, os.path.join(item_pipeline_dir, "item_metadata_pipeline.pkl"))
         with open(pipeline_path, "rb") as f:
             item_pipeline = dill.load(f)
         if item_pipeline is None:
             raise ValueError("Invalid item metadata pipeline loaded")
-        logger.info(
-            "Item metadata pipeline loaded and copied to %s", item_pipeline_dir
-        )
+        logger.info("Item metadata pipeline loaded and copied to %s", item_pipeline_dir)
     except Exception as e:
         logger.error("Failed to load item metadata pipeline: %s", e)
         raise
@@ -229,6 +272,11 @@ def load_model_and_artifacts(model_name: str):
 
 
 def print_model_info(model: torch.nn.Module):
+    """Prints a summary of the model's architecture and parameters.
+
+    Args:
+        model (torch.nn.Module): The PyTorch model to summarize.
+    """
     total_params = sum(p.numel() for p in model.parameters())
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info("\n===== Model Summary =====")
@@ -238,14 +286,25 @@ def print_model_info(model: torch.nn.Module):
 
 
 def export_to_onnx(model: torch.nn.Module, seq_len: int, feature_size: int) -> str:
-    logger.info("\n⏳ Exporting model to ONNX format...")
+    """Exports the PyTorch model to ONNX format.
+
+    Args:
+        model (torch.nn.Module): The PyTorch model to export.
+        seq_len (int): Sequence length for input tensors.
+        feature_size (int): Feature size for item features tensor.
+
+    Returns:
+        str: Path to the exported ONNX model file.
+
+    Raises:
+        Exception: If ONNX export or validation fails.
+    """
+    logger.info("Exporting model to ONNX format...")
     wrapper = TritonModelWrapper(model)
     dummy_inputs = (
         torch.randint(0, 10, (1, 1), dtype=torch.int64),  # user_ids
         torch.randint(0, 10, (1, seq_len), dtype=torch.int64),  # input_seq
-        torch.randint(
-            0, seq_len + 1, (1, seq_len), dtype=torch.int64
-        ),  # input_seq_ts_bucket
+        torch.randint(0, seq_len + 1, (1, seq_len), dtype=torch.int64),  # input_seq_ts_bucket
         torch.randn(1, feature_size, dtype=torch.float32),  # item_features
         torch.randint(0, 10, (1, 1), dtype=torch.int64),  # target_item
     )
@@ -259,31 +318,35 @@ def export_to_onnx(model: torch.nn.Module, seq_len: int, feature_size: int) -> s
             export_params=True,
             opset_version=ONNX_OPSET,
             do_constant_folding=True,
-            input_names=[
-                "user_ids",
-                "input_seq",
-                "input_seq_ts_bucket",
-                "item_features",
-                "target_item",
-            ],
+            input_names=["user_ids", "input_seq", "input_seq_ts_bucket", "item_features", "target_item"],
             output_names=["output"],
             dynamic_axes=DYNAMIC_AXES,
             verbose=False,
         )
-        logger.info("✅ ONNX model exported: %s", onnx_path)
+        logger.info("ONNX model exported: %s", onnx_path)
         onnx_model = onnx.load(onnx_path)
         checker.check_model(onnx_model)
-        logger.info("✅ ONNX model validation passed")
+        logger.info("ONNX model validation passed")
         return onnx_path
     except Exception as e:
-        logger.error("❌ ONNX export/check failed: %s", e)
+        logger.error("ONNX export/check failed: %s", e)
         raise
 
 
 def prepare_triton_repo(onnx_path: str, model_name: str, repo_path: str):
+    """Prepares the Triton model repository with necessary files and configurations.
+
+    Args:
+        onnx_path (str): Path to the exported ONNX model file.
+        model_name (str): Name of the model in MLflow.
+        repo_path (str): Path to the Triton model repository.
+
+    Raises:
+        FileNotFoundError: If required files (ONNX or pickle) are not found.
+    """
     # Verify ONNX file exists
     if not os.path.isfile(onnx_path):
-        logger.error("❌ ONNX file does not exist: %s", onnx_path)
+        logger.error("ONNX file does not exist: %s", onnx_path)
         raise FileNotFoundError(f"ONNX file does not exist: {onnx_path}")
 
     # Create model directories
@@ -295,18 +358,16 @@ def prepare_triton_repo(onnx_path: str, model_name: str, repo_path: str):
     for model_dir in [ranker_dir, id_mapper_dir, item_pipeline_dir, ensemble_dir]:
         version_dir = os.path.join(model_dir, "1")
         os.makedirs(version_dir, exist_ok=True)
-        logger.info("✅ Created directory: %s", version_dir)
+        logger.info("Created directory: %s", version_dir)
 
     # Verify pickle files
     id_mapper_pkl_path = os.path.join(id_mapper_dir, "1", "id_mapper.pkl")
-    item_pipeline_pkl_path = os.path.join(
-        item_pipeline_dir, "1", "item_metadata_pipeline.pkl"
-    )
+    item_pipeline_pkl_path = os.path.join(item_pipeline_dir, "1", "item_metadata_pipeline.pkl")
     for pkl_path in [id_mapper_pkl_path, item_pipeline_pkl_path]:
         if not os.path.isfile(pkl_path):
-            logger.error("❌ Pickle file not found: %s", pkl_path)
+            logger.error("Pickle file not found: %s", pkl_path)
             raise FileNotFoundError(f"Pickle file not found: {pkl_path}")
-        logger.info("✅ Verified pickle file: %s", pkl_path)
+        logger.info("Verified pickle file: %s", pkl_path)
 
     # Write ranker config
     ranker_config = f"""
@@ -341,12 +402,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class TritonPythonModel:
+    \"\"\"Triton Python model for ID mapping.\"\"\"
+    
     def __init__(self):
         self.idm = None
         self.sequence_length = 10  # Match SEQ_LEN from script
         self.padding_value = -1   # Match padding_value from convert_asin_to_idx
 
     def initialize(self, args):
+        \"\"\"Initializes the IDMapper by loading the pickle file.
+
+        Args:
+            args: Triton model arguments.
+        \"\"\"
         model_dir = os.path.dirname(__file__)
         pkl_path = os.path.join(model_dir, "id_mapper.pkl")
         logger.info(f"Loading IDMapper from: {pkl_path}")
@@ -355,6 +423,16 @@ class TritonPythonModel:
         logger.info("IDMapper initialized")
 
     def convert_to_idx(self, sequence, sequence_length, padding_value):
+        \"\"\"Converts a sequence of items to indices with padding.
+
+        Args:
+            sequence: Input sequence to convert.
+            sequence_length (int): Desired length of the output sequence.
+            padding_value (int): Value used for padding.
+
+        Returns:
+            np.ndarray: Array of indices with shape (sequence_length,).
+        \"\"\"
         # Handle None or empty sequences
         if sequence is None or len(sequence) == 0:
             return np.array([padding_value] * sequence_length, dtype=np.int64)
@@ -381,6 +459,14 @@ class TritonPythonModel:
         return np.array(indices, dtype=np.int64)
 
     def execute(self, requests):
+        \"\"\"Processes inference requests for ID mapping.
+
+        Args:
+            requests: List of Triton inference requests.
+
+        Returns:
+            list: List of Triton InferenceResponse objects.
+        \"\"\"
         responses = []
         for request in requests:
             user_ids = pb_utils.get_input_tensor_by_name(request, "user_ids").as_numpy()  # Shape: [batch_size, -1]
@@ -423,12 +509,13 @@ class TritonPythonModel:
         return responses
 
     def finalize(self):
+        \"\"\"Finalizes the IDMapper model.\"\"\"
         logger.info("IDMapper finalized")
 """
     id_mapper_model_path = os.path.join(id_mapper_dir, "1", "model.py")
     with open(id_mapper_model_path, "w", encoding="utf-8") as f:
         f.write(id_mapper_script)
-    logger.info("✅ IDMapper model script created at %s", id_mapper_model_path)
+    logger.info("IDMapper model script created at %s", id_mapper_model_path)
 
     # Write IDMapper config
     id_mapper_config = f"""
@@ -450,7 +537,7 @@ instance_group [ {{ kind: KIND_CPU, count: 4 }} ]
     id_mapper_config_path = os.path.join(id_mapper_dir, "config.pbtxt")
     with open(id_mapper_config_path, "w", encoding="utf-8") as f:
         f.write(id_mapper_config)
-    logger.info("✅ IDMapper config created at %s", id_mapper_config_path)
+    logger.info("IDMapper config created at %s", id_mapper_config_path)
 
     # Write item pipeline model script
     item_pipeline_script = """
@@ -465,10 +552,17 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class TritonPythonModel:
+    \"\"\"Triton Python model for item metadata pipeline processing.\"\"\"
+    
     def __init__(self):
         self.pipeline = None
 
     def initialize(self, args):
+        \"\"\"Initializes the item metadata pipeline by loading the pickle file.
+
+        Args:
+            args: Triton model arguments.
+        \"\"\"
         model_dir = os.path.dirname(__file__)
         pkl_path = os.path.join(model_dir, "item_metadata_pipeline.pkl")
         logger.info(f"Loading item pipeline from: {pkl_path}")
@@ -477,6 +571,14 @@ class TritonPythonModel:
         logger.info("Item pipeline initialized")
 
     def execute(self, requests):
+        \"\"\"Processes inference requests for item metadata pipeline.
+
+        Args:
+            requests: List of Triton inference requests.
+
+        Returns:
+            list: List of Triton InferenceResponse objects containing item features.
+        \"\"\"
         responses = []
         for request in requests:
             items = pb_utils.get_input_tensor_by_name(request, "items").as_numpy()
@@ -527,12 +629,13 @@ class TritonPythonModel:
         return responses
 
     def finalize(self):
+        \"\"\"Finalizes the item metadata pipeline model.\"\"\"
         logger.info("Item pipeline finalized")
 """
     item_pipeline_model_path = os.path.join(item_pipeline_dir, "1", "model.py")
     with open(item_pipeline_model_path, "w", encoding="utf-8") as f:
         f.write(item_pipeline_script)
-    logger.info("✅ Item pipeline model script created at %s", item_pipeline_model_path)
+    logger.info("Item pipeline model script created at %s", item_pipeline_model_path)
 
     # Write item pipeline config
     item_pipeline_config = f"""
@@ -561,7 +664,7 @@ instance_group [ {{ kind: KIND_CPU, count: 4 }} ]
     item_pipeline_config_path = os.path.join(item_pipeline_dir, "config.pbtxt")
     with open(item_pipeline_config_path, "w", encoding="utf-8") as f:
         f.write(item_pipeline_config)
-    logger.info("✅ Item pipeline config created at %s", item_pipeline_config_path)
+    logger.info("Item pipeline config created at %s", item_pipeline_config_path)
 
     # Write ensemble config
     ensemble_config = f"""
@@ -635,15 +738,13 @@ ensemble_scheduling {{
         f.write(ensemble_config)
     logger.info("Ensemble config created at %s", ensemble_config_path)
 
-    # === Copy id_mapper.py vào id_mapper/1/ ===
-    IDM_SOURCE = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "id_mapper.py")
-    )
+    # Copy id_mapper.py to id_mapper/1/
+    IDM_SOURCE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "id_mapper.py"))
     IDM_DEST = os.path.join(repo_path, "id_mapper", "1", "id_mapper.py")
     shutil.copy2(IDM_SOURCE, IDM_DEST)
     logger.info("Copied id_mapper.py to %s", IDM_DEST)
 
-    # === Copy thư mục features vào item_pipeline/1/features/ ===
+    # Copy features directory to item_pipeline/1/features/
     FEATURES_SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), "features"))
     FEATURES_DST = os.path.join(repo_path, "item_pipeline", "1", "features")
     if os.path.exists(FEATURES_DST):
@@ -655,6 +756,7 @@ ensemble_scheduling {{
 
 
 def main():
+    """Main function to orchestrate model loading, export, and Triton repository preparation."""
     mlflow.set_tracking_uri(MLFLOW_URI)
     test_s3_connection()
     model, idm, item_pipeline = load_model_and_artifacts(MODEL_NAME)

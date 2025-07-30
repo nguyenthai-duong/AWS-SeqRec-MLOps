@@ -4,7 +4,7 @@ metadata:
   name: api-gateway
   namespace: api-gateway
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: api-gateway
@@ -21,11 +21,11 @@ spec:
             - containerPort: 8000
           env:
             - name: REDIS_HOST
-              value: "redis-master.cache.svc.cluster.local"      # Tên svc Redis (Bitnami chart sẽ sinh ra tên này mặc định)
+              value: "redis-master.cache.svc.cluster.local"
             - name: REDIS_PORT
               value: "6379"
             - name: REDIS_PASSWORD
-              value: "123456"                               # Đặt đúng password của Redis
+              value: "123456"
             - name: USER_FEATURE_URL
               value: "http://feature-store-api-service.api-feature-store.svc.cluster.local/user_features"
             - name: ITEM_FEATURE_URL

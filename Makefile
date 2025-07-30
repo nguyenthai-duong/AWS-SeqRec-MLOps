@@ -12,7 +12,7 @@ style:
 	uv run mypy src/ data_pipeline_aws/
 
 test:
-	uv run pytest
+	uv run pytest tests/
 
 notebook:
 	uv run jupyter lab

@@ -1,71 +1,64 @@
 import json
 from collections import defaultdict
 from copy import deepcopy
-
 import numpy as np
 import torch
 import torch.nn as nn
 from loguru import logger
 from torch.distributed import get_rank, get_world_size
-from torch.utils.data import IterableDataset, get_worker_info
+from torch.utils.data import IterableDataset
 from tqdm.auto import tqdm
 
 
 class SkipGramDataset(IterableDataset):
-    """
-    This class represents a dataset for training a SkipGram model.
-    """
+    """Dataset for training a SkipGram model using sequences of item indices."""
 
     def __init__(
         self,
         sequences_fp: str,
-        interacted=defaultdict(set),
-        item_freq=defaultdict(int),
-        window_size=2,
-        negative_samples=5,
-        id_to_idx=None,
-        ddp=False,
+        interacted: defaultdict = defaultdict(set),
+        item_freq: defaultdict = defaultdict(int),
+        window_size: int = 2,
+        negative_samples: int = 5,
+        id_to_idx: dict = None,
+        ddp: bool = False,
     ):
-        """
+        """Initialize the SkipGram dataset.
+
         Args:
-            sequences_fp (str): File path to the sequences of item indices in jsonl format.
-            interacted_dict (defaultdict(set)): A dictionary that keeps track of the other items that shared the same basket with the target item. Those items are ignored when negative sampling.
-            item_freq (defaultdict(int)): A dictionary that keeps track the item frequency. It's used to
-            window_size (int): The context window size.
-            negative_samples (int): Number of negative samples for each positive pair.
-            id_to_idx (dict): Mapper between item id (string) to item index (int)
-            ddp (bool): whether we're using DDP for distributed training or not
+            sequences_fp (str): File path to sequences of item indices in JSONL format.
+            interacted (defaultdict[set]): Dictionary tracking items that co-occur in the same basket, ignored during negative sampling.
+            item_freq (defaultdict[int]): Dictionary tracking item frequencies for negative sampling.
+            window_size (int): Size of the context window for positive pair generation.
+            negative_samples (int): Number of negative samples per positive pair.
+            id_to_idx (dict, optional): Mapping from item IDs (str) to indices (int). Defaults to None.
+            ddp (bool): Whether to use Distributed Data Parallel (DDP) for training. Defaults to False.
 
-        The reason that interacted_dict and item_freq can be passed into the initialization is that at val dataset creation we want to do negative sampling based on the data from the train set as well.
+        Note:
+            The `interacted` and `item_freq` parameters allow reuse of training set data for validation set negative sampling.
         """
-
-        assert sequences_fp.endswith(".jsonl")
+        if not sequences_fp.endswith(".jsonl"):
+            raise ValueError("sequences_fp must be a .jsonl file")
         self.sequences_fp = sequences_fp
         self.window_size = window_size
         self.negative_samples = negative_samples
         self.ddp = ddp
 
-        # Convert the input IDs into sequence integer for easier processing
-        if id_to_idx is None:
-            self.id_to_idx = dict()
-            self.idx_to_id = dict()
-        else:
-            self.id_to_idx = id_to_idx
-            self.idx_to_id = {v: k for k, v in id_to_idx.items()}
+        # Initialize item ID to index mappings
+        self.id_to_idx = dict() if id_to_idx is None else id_to_idx
+        self.idx_to_id = (
+            dict() if id_to_idx is None else {v: k for k, v in id_to_idx.items()}
+        )
 
         self.interacted = deepcopy(interacted)
         self.item_freq = deepcopy(item_freq)
-        self.num_targets = 0  # Counter for number of items in all sequences
+        self.num_targets = 0  # Total number of items across all sequences
 
-        # Keep tracked of which item-pair co-occur in one basket
-        # When doing negative sampling we do not consider the other items that the target item has shared basket
+        # Process sequences to build interaction data
         logger.info("Processing sequences to build interaction data...")
         self.sequences = []
         with open(self.sequences_fp, "r") as f:
-            seq_idx = 0
-            # Wrap the file with tqdm to show progress
             for line in tqdm(f, desc="Building interactions"):
-                # Parse each line into a Python object
                 seq = json.loads(line)
                 self.sequences.append(seq)
 
@@ -77,46 +70,36 @@ class SkipGramDataset(IterableDataset):
                         self.idx_to_id[idx] = item
                     self.num_targets += 1
 
-                seq_idx_set = set([self.id_to_idx[id_] for id_ in seq])
+                seq_idx_set = {self.id_to_idx[id_] for id_ in seq}
                 for idx in seq_idx_set:
-                    # An item can be considered that it has interacted with itself
-                    # This helps with negative sampling later
                     self.interacted[idx].update(seq_idx_set)
                     self.item_freq[idx] += 1
 
-                seq_idx += 1
+        self.num_sequences = len(self.sequences)
 
-        self.num_sequences = seq_idx + 1
+        # Determine vocabulary size
+        self.vocab_size = (
+            len(self.item_freq) if id_to_idx is None else len(id_to_idx)
+        )
 
-        # Total number of unique items
-        if id_to_idx is None:
-            self.vocab_size = len(self.item_freq)
-        else:
-            # Need to check this because sometimes the id_to_idx can have more items than the item_freq
-            # For example quen previously we filter out sequence length = 1 so there might be some items
-            # are excluded
-            self.vocab_size = len(id_to_idx)
-
-        # Create a list of items and corresponding probabilities for sampling
+        # Prepare item frequency array for negative sampling
         items, frequencies = zip(*self.item_freq.items())
         self.item_freq_array = np.zeros(self.vocab_size)
         self.item_freq_array[np.array(items)] = frequencies
-
         self.items = np.arange(self.vocab_size)
 
-        # Use a smoothed frequency distribution for negative sampling
-        # The smoothing factor (0.75) can be tuned
+        # Compute smoothed sampling probabilities
         self.sampling_probs = self.item_freq_array**0.75
         self.sampling_probs /= self.sampling_probs.sum()
 
-    def get_process_info(self):
-        """
-        Get information about which process is processing the data so that we can correctly split up the data based on iteration
+    def get_process_info(self) -> tuple[int, int]:
+        """Retrieve process information for data splitting in distributed training.
+
+        Returns:
+            tuple[int, int]: Number of replicas and rank of the current process.
         """
         if not self.ddp:
-            num_replicas = 1
-            rank = 0
-            return num_replicas, rank
+            return 1, 0
 
         worker_info = get_worker_info()
         num_workers = worker_info.num_workers if worker_info is not None else 1
@@ -127,10 +110,14 @@ class SkipGramDataset(IterableDataset):
 
         num_replicas = num_workers * world_size
         rank = process_rank * num_workers + worker_id
-
         return num_replicas, rank
 
     def __iter__(self):
+        """Iterate over the dataset, yielding items for the current process.
+
+        Yields:
+            dict: A dictionary containing target items, context items, and labels.
+        """
         num_replicas, rank = self.get_process_info()
         idx = 0
         for seq in self.sequences:
@@ -138,38 +125,41 @@ class SkipGramDataset(IterableDataset):
                 if idx % num_replicas != rank:
                     idx += 1
                     continue
-
                 yield self._get_item(seq, i)
                 idx += 1
 
-    def _get_item(self, sequence, i):
+    def _get_item(self, sequence: list, i: int) -> dict:
+        """Generate positive and negative pairs for a given item in a sequence.
+
+        Args:
+            sequence (list): List of item IDs in the sequence.
+            i (int): Index of the target item in the sequence.
+
+        Returns:
+            dict: Dictionary containing tensors for target items, context items, and labels.
+        """
         sequence = [self.id_to_idx[item] for item in sequence]
         target_item = sequence[i]
 
         positive_pairs = []
         labels = []
 
+        # Generate positive pairs within the window
         start = max(i - self.window_size, 0)
         end = min(i + self.window_size + 1, len(sequence))
-
         for j in range(start, end):
             if i != j:
                 context_item = sequence[j]
                 positive_pairs.append((target_item, context_item))
-                labels.append(1)  # Positive label
+                labels.append(1)
 
-        # Generate negative samples based on item frequency
+        # Generate negative samples
         negative_pairs = []
-
         for target_item, _ in positive_pairs:
-            # Mask out the items that the target item has interacted with
-            # Then sample the remaining items based on the item frequency as negative items
             negative_sampling_probs = deepcopy(self.sampling_probs)
             negative_sampling_probs[list(self.interacted[target_item])] = 0
             if negative_sampling_probs.sum() == 0:
-                # This target_item has interacted with every other items
                 negative_sampling_probs = np.ones(len(negative_sampling_probs))
-
             negative_sampling_probs /= negative_sampling_probs.sum()
 
             negative_items = np.random.choice(
@@ -178,15 +168,12 @@ class SkipGramDataset(IterableDataset):
                 p=negative_sampling_probs,
                 replace=False,
             )
-
             for negative_item in negative_items:
                 negative_pairs.append((target_item, negative_item))
                 labels.append(0)
 
-        # Combine positive and negative pairs
+        # Combine pairs and convert to tensors
         pairs = positive_pairs + negative_pairs
-
-        # Convert to tensor
         target_items = torch.tensor([pair[0] for pair in pairs], dtype=torch.long)
         context_items = torch.tensor([pair[1] for pair in pairs], dtype=torch.long)
         labels = torch.tensor(labels, dtype=torch.float)
@@ -197,7 +184,15 @@ class SkipGramDataset(IterableDataset):
             "labels": labels,
         }
 
-    def collate_fn(self, batch):
+    def collate_fn(self, batch: list[dict]) -> dict:
+        """Collate a batch of items into a single dictionary of tensors.
+
+        Args:
+            batch (list[dict]): List of dictionaries containing target items, context items, and labels.
+
+        Returns:
+            dict: Collated dictionary with concatenated tensors.
+        """
         target_items = []
         context_items = []
         labels = []
@@ -211,7 +206,12 @@ class SkipGramDataset(IterableDataset):
             "labels": torch.cat(labels, dim=0),
         }
 
-    def save_id_mappings(self, filepath: str):
+    def save_id_mappings(self, filepath: str) -> None:
+        """Save item ID to index mappings to a file.
+
+        Args:
+            filepath (str): Path to save the mappings as a JSON file.
+        """
         with open(filepath, "w") as f:
             json.dump(
                 {
@@ -222,17 +222,29 @@ class SkipGramDataset(IterableDataset):
             )
 
     @classmethod
-    def get_default_loss_fn(cls):
-        loss_fn = nn.BCELoss()
-        return loss_fn
+    def get_default_loss_fn(cls) -> nn.Module:
+        """Retrieve the default loss function for training.
+
+        Returns:
+            nn.Module: Binary Cross Entropy loss function.
+        """
+        return nn.BCELoss()
 
     @classmethod
-    def forward(cls, model, batch_input, loss_fn=None, device="cpu"):
+    def forward(cls, model, batch_input: dict, loss_fn: nn.Module = None, device: str = "cpu") -> torch.Tensor:
+        """Perform a forward pass and compute the loss for a batch.
+
+        Args:
+            model: The SkipGram model.
+            batch_input (dict): Batch containing target items, context items, and labels.
+            loss_fn (nn.Module, optional): Loss function to use. Defaults to None, in which case BCELoss is used.
+            device (str): Device to perform computations on. Defaults to "cpu".
+
+        Returns:
+            torch.Tensor: Computed loss for the batch.
+        """
         predictions = model.predict_train_batch(batch_input, device=device).squeeze()
         labels = batch_input["labels"].float().to(device).squeeze()
-
         if loss_fn is None:
             loss_fn = cls.get_default_loss_fn()
-
-        loss = loss_fn(predictions, labels)
-        return loss
+        return loss_fn(predictions, labels)
