@@ -1,0 +1,69 @@
+# Data configuration
+data_path: "/data"
+sequences_file: "train_item_sequence.jsonl"  # Training sequences file
+val_sequences_file: "val_item_sequence.jsonl"  # Validation sequences file
+idm_file: "idm.json"  # ID mapper file
+
+# Model configuration
+model:
+  type: "skipgram"
+  embedding_dim:
+    choice: [64, 256]
+
+# Training configuration
+training:
+  max_epochs: 15
+  batch_size: 512
+  num_negative_samples: 3
+  window_size: 3
+  num_workers: 2  # Number of DataLoader workers
+  learning_rate:
+    loguniform: [0.001, 0.01]
+  l2_reg:
+    loguniform: [1e-6, 1e-3]
+
+# Checkpoint and storage configuration
+checkpoint_dir: "/tmp/checkpoints"
+final_checkpoint_dir: "/tmp/checkpoints/final_model"
+storage_path: "/tmp/ray_checkpoints"
+
+# Experiment configuration
+experiment:
+  run_name: "item2vec"
+  dataset_version: "v1"
+  tune_config:
+    metric: "val_loss"
+    mode: "min"  # Optimization mode
+    num_samples: 10  # Number of trials for tuning
+
+# MLflow configuration
+mlflow:
+  tracking_uri: "http://mlflow-tracking-service.mlflow.svc.cluster.local:5000"
+  s3_endpoint_url: "http://minio-service.mlflow.svc.cluster.local:9000"
+  s3_ignore_tls: true
+  aws_access_key_id: "admin"
+  aws_secret_access_key: "Password1234"
+
+# Ray configuration
+ray:
+  address: "ray://raycluster-kuberay-head-svc:10001"
+  runtime_env:
+    working_dir: "."
+    py_modules:
+      - "../id_mapper.py"
+    env_vars:
+      PYTHONPATH: ".."
+
+# Trainer configuration
+trainer:
+  accelerator: "auto"  # Hardware accelerator
+  checkpoint:
+    filename: "best-checkpoint"  # Checkpoint filename
+    save_top_k: 1
+    monitor: "val_loss"
+    mode: "min"
+  early_stopping:
+    monitor: "val_loss"
+    patience: 2
+    mode: "min"
+    verbose: true

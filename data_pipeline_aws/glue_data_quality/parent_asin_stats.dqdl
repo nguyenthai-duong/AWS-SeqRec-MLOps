@@ -1,0 +1,14 @@
+Rules = [
+  IsComplete "parent_asin",
+  IsComplete "event_timestamp",
+
+  ColumnValues "parent_asin_rating_cnt_365d" >= 0,
+  ColumnValues "parent_asin_rating_cnt_90d" >= 0,
+  ColumnValues "parent_asin_rating_cnt_30d" >= 0,
+  ColumnValues "parent_asin_rating_cnt_7d" >= 0,
+
+  ColumnValues "parent_asin_rating_avg_prev_rating_365d" between 0.99 and 5.01,
+  ColumnValues "parent_asin_rating_avg_prev_rating_90d" between 0.99 and 5.01,
+  ColumnValues "parent_asin_rating_avg_prev_rating_30d" between 0.99 and 5.01,
+  ColumnValues "parent_asin_rating_avg_prev_rating_7d" between 0.99 and 5.01
+]

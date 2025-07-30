@@ -1,0 +1,9 @@
+FROM nvcr.io/nvidia/tritonserver:24.09-py3
+
+RUN pip install --no-cache-dir dill numpy pandas scikit-learn
+
+COPY src /opt/tritonserver/src
+
+EXPOSE 8000 8001 8002
+
+ENTRYPOINT ["tritonserver"]
