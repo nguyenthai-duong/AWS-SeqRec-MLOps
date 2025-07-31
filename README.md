@@ -1,4 +1,4 @@
-# AWS-SeqRec-MLOps
+# Ecommerce-Recommender-System-On-Aws-With-Mlops
 
 A **production-ready, end-to-end Recommender System pipeline** for scalable, cloud-native machine learning workflows. This project provides a robust MLOps architecture for building, training, deploying, and serving recommendation models in both research and production environments.
 
@@ -28,16 +28,15 @@ A **production-ready, end-to-end Recommender System pipeline** for scalable, clo
 
 ---
 ## 📚 Table of Contents
-
-1. [Quickstart](#-quickstart)
-2. [Infrastructure Setup](#-infrastructure-setup)
-3. [Data Pipeline & Feature Store](#-data-pipeline--feature-store)
-4. [Kubeflow Pipeline Training](#-kubeflow-pipeline-training)
-5. [Offline Caching](#-offline-caching)
-6. [Serving Cluster & Model Serving](#-serving-cluster--model-serving)
-7. [CI/CD & Jenkins Integration](#-cicd--jenkins-integration)
-8. [API Gateway & UI](#-api-gateway--ui)
-9. [Monitoring](#-monitoring)
+1. [🚀 Quickstart](#-quickstart)
+2. [☸️ Infrastructure Setup](#-infrastructure-setup)
+3. [📦 Data Pipeline & Feature Store](#-data-pipeline--feature-store)
+4. [🧩 Kubeflow Pipeline Training](#-kubeflow-pipeline-training)
+5. [🗃️ Offline Caching](#-offline-caching)
+6. [🏗️ Serving Cluster & Model Serving](#-serving-cluster--model-serving)
+7. [⚙️ CI/CD & Jenkins Integration](#-cicd--jenkins-integration)
+8. [🌐 API Gateway & UI](#-api-gateway--ui)
+9. [📊 Monitoring](#-monitoring)
 
 ---
 
