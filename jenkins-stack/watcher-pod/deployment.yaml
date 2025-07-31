@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-promotion-watcher
+  namespace: devops-tools
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: model-promotion-watcher
+  template:
+    metadata:
+      labels:
+        app: model-promotion-watcher
+    spec:
+      containers:
+      - name: model-promotion-watcher
+        image: nthaiduong83/model-promotion-watcher:v1
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: MLFLOW_TRACKING_URI
+          value: "http://mlflow-tracking-service.mlflow.svc.cluster.local:5000"
+        - name: MODEL_NAME
+          value: "seq_tune_v1_sequence_rating"
+        - name: JENKINS_BASE
+          value: "http://jenkins-service.devops-tools.svc.cluster.local:8080/jenkins"
+        - name: JENKINS_USER
+          value: "admin"
+        - name: JENKINS_TOKEN
+          value: "7f225be7156d4207a59ed6f4960140f2"
+        - name: JENKINS_JOB
+          value: "serving-pipeline"
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0 if __import__('os').path.exists('/app/watch_promotion.py') else 1)"
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0 if __import__('os').path.exists('/app/watch_promotion.py') else 1)"
+          initialDelaySeconds: 5
+          periodSeconds: 5

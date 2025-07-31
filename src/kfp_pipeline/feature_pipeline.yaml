@@ -1,0 +1,812 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: feature-engineering-pipeline-
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.4.0, pipelines.kubeflow.org/pipeline_compilation_time: '2025-07-30T15:04:55.555027',
+    pipelines.kubeflow.org/pipeline_spec: '{"description": "Pipeline for running feature
+      engineering, negative sampling, Item2Vec preparation, and training steps", "name":
+      "Feature Engineering Pipeline"}'}
+  labels: {pipelines.kubeflow.org/kfp_sdk_version: 1.4.0}
+spec:
+  entrypoint: feature-engineering-pipeline
+  templates:
+  - name: feature-engineering-op
+    container:
+      args: [--output-path, /data/papermill-output/feature-output.ipynb, '----output-paths',
+        /tmp/outputs/output_path/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def feature_engineering_op(
+            output_path,
+        ):
+            """Run the feature engineering pipeline script.
+
+            Args:
+                output_path (str): Path where the output file will be stored.
+
+            Returns:
+                NamedTuple: A named tuple containing the output_path.
+
+            Raises:
+                SystemExit: If the pipeline script is not found or fails to execute.
+            """
+            import os
+            import subprocess
+            import sys
+            from pathlib import Path
+
+            # Print volume mount information for debugging
+            print("Checking volume mounts:")
+            print(f"Contents of /app: {os.listdir('/app')}")
+            print(f"Contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}")
+            print(f"Contents of /data: {os.listdir('/data')}")
+
+            # Create parent directory for output if it doesn't exist
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+            # Ensure output directory exists
+            os.makedirs("/tmp/outputs/output_path", exist_ok=True)
+
+            # Check for pipeline script existence
+            pipeline_path = "/app/src/feature_engineer/000_feature_pipeline.py"
+            working_dir = "/app/src/feature_engineer"
+            print(f"Looking for pipeline at: {pipeline_path}")
+            print(f"Current working directory: {os.getcwd()}")
+            print(f"Directory contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}")
+
+            if not os.path.exists(pipeline_path):
+                print(f"Error: File not found at {pipeline_path}")
+                print(f"Current working directory: {os.getcwd()}")
+                print(f"Directory contents: {os.listdir('/app/src/feature_engineer')}")
+                sys.exit(1)
+
+            try:
+                print(f"Running command: uv run {pipeline_path}")
+                subprocess.run(["uv", "run", pipeline_path], check=True, cwd=working_dir)
+            except subprocess.CalledProcessError as e:
+                print(f"Error running pipeline: {e}")
+                print(f"Command output: {e.output if hasattr(e, 'output') else 'No output'}")
+                sys.exit(1)
+
+            return (output_path,)
+
+        def _serialize_str(str_value: str) -> str:
+            if not isinstance(str_value, str):
+                raise TypeError('Value "{}" has type "{}" instead of str.'.format(str(str_value), str(type(str_value))))
+            return str_value
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Feature engineering op', description='Run the feature engineering pipeline script.')
+        _parser.add_argument("--output-path", dest="output_path", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=1)
+        _parsed_args = vars(_parser.parse_args())
+        _output_files = _parsed_args.pop("_output_paths", [])
+
+        _outputs = feature_engineering_op(**_parsed_args)
+
+        _output_serializers = [
+            _serialize_str,
+
+        ]
+
+        import os
+        for idx, output_file in enumerate(_output_files):
+            try:
+                os.makedirs(os.path.dirname(output_file))
+            except OSError:
+                pass
+            with open(output_file, 'w') as f:
+                f.write(_output_serializers[idx](_outputs[idx]))
+      env:
+      - {name: PVC_PATH, value: /data}
+      - name: AWS_REGION
+        valueFrom:
+          secretKeyRef: {key: AWS_REGION, name: aws-credentials}
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef: {key: AWS_ACCESS_KEY_ID, name: aws-credentials}
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef: {key: AWS_SECRET_ACCESS_KEY, name: aws-credentials}
+      - name: S3_BUCKET
+        valueFrom:
+          secretKeyRef: {key: S3_BUCKET, name: aws-credentials}
+      - name: POSTGRES_URI_REGISTRY
+        valueFrom:
+          secretKeyRef: {key: POSTGRES_URI_REGISTRY, name: aws-credentials}
+      image: kubeflow-pipeline:v5
+      resources:
+        requests: {memory: 2Gi}
+      volumeMounts:
+      - {mountPath: /data, name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7}
+    outputs:
+      artifacts:
+      - {name: feature-engineering-op-output_path, path: /tmp/outputs/output_path/data}
+    metadata:
+      annotations: {debug/mount-path: /data, pipelines.kubeflow.org/component_spec: '{"description":
+          "Run the feature engineering pipeline script.", "implementation": {"container":
+          {"args": ["--output-path", {"inputValue": "output_path"}, "----output-paths",
+          {"outputPath": "output_path"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def feature_engineering_op(\n    output_path,\n):\n    \"\"\"Run the feature
+          engineering pipeline script.\n\n    Args:\n        output_path (str): Path
+          where the output file will be stored.\n\n    Returns:\n        NamedTuple:
+          A named tuple containing the output_path.\n\n    Raises:\n        SystemExit:
+          If the pipeline script is not found or fails to execute.\n    \"\"\"\n    import
+          os\n    import subprocess\n    import sys\n    from pathlib import Path\n\n    #
+          Print volume mount information for debugging\n    print(\"Checking volume
+          mounts:\")\n    print(f\"Contents of /app: {os.listdir(''/app'')}\")\n    print(f\"Contents
+          of /app/src/feature_engineer: {os.listdir(''/app/src/feature_engineer'')}\")\n    print(f\"Contents
+          of /data: {os.listdir(''/data'')}\")\n\n    # Create parent directory for
+          output if it doesn''t exist\n    Path(output_path).parent.mkdir(parents=True,
+          exist_ok=True)\n\n    # Ensure output directory exists\n    os.makedirs(\"/tmp/outputs/output_path\",
+          exist_ok=True)\n\n    # Check for pipeline script existence\n    pipeline_path
+          = \"/app/src/feature_engineer/000_feature_pipeline.py\"\n    working_dir
+          = \"/app/src/feature_engineer\"\n    print(f\"Looking for pipeline at: {pipeline_path}\")\n    print(f\"Current
+          working directory: {os.getcwd()}\")\n    print(f\"Directory contents of
+          /app/src/feature_engineer: {os.listdir(''/app/src/feature_engineer'')}\")\n\n    if
+          not os.path.exists(pipeline_path):\n        print(f\"Error: File not found
+          at {pipeline_path}\")\n        print(f\"Current working directory: {os.getcwd()}\")\n        print(f\"Directory
+          contents: {os.listdir(''/app/src/feature_engineer'')}\")\n        sys.exit(1)\n\n    try:\n        print(f\"Running
+          command: uv run {pipeline_path}\")\n        subprocess.run([\"uv\", \"run\",
+          pipeline_path], check=True, cwd=working_dir)\n    except subprocess.CalledProcessError
+          as e:\n        print(f\"Error running pipeline: {e}\")\n        print(f\"Command
+          output: {e.output if hasattr(e, ''output'') else ''No output''}\")\n        sys.exit(1)\n\n    return
+          (output_path,)\n\ndef _serialize_str(str_value: str) -> str:\n    if not
+          isinstance(str_value, str):\n        raise TypeError(''Value \"{}\" has
+          type \"{}\" instead of str.''.format(str(str_value), str(type(str_value))))\n    return
+          str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Feature
+          engineering op'', description=''Run the feature engineering pipeline script.'')\n_parser.add_argument(\"--output-path\",
+          dest=\"output_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\",
+          dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files
+          = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = feature_engineering_op(**_parsed_args)\n\n_output_serializers
+          = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
+          OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
+          "image": "kubeflow-pipeline:v5"}}, "inputs": [{"description": "Path where
+          the output file will be stored.", "name": "output_path", "type": "String"}],
+          "name": "Feature engineering op", "outputs": [{"name": "output_path", "type":
+          "String"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"output_path":
+          "/data/papermill-output/feature-output.ipynb"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+    volumes:
+    - name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7
+      persistentVolumeClaim: {claimName: data-pvc}
+  - name: feature-engineering-pipeline
+    dag:
+      tasks:
+      - {name: feature-engineering-op, template: feature-engineering-op}
+      - name: negative-sampling-op
+        template: negative-sampling-op
+        dependencies: [feature-engineering-op]
+      - name: prep-item2vec-op
+        template: prep-item2vec-op
+        dependencies: [feature-engineering-op]
+      - name: train-item2vec-op
+        template: train-item2vec-op
+        dependencies: [prep-item2vec-op]
+      - name: train-ranking-sequence-op
+        template: train-ranking-sequence-op
+        dependencies: [negative-sampling-op, train-item2vec-op]
+  - name: negative-sampling-op
+    container:
+      args: [--output-path, /data/papermill-output/negative-sampling-output.ipynb,
+        '----output-paths', /tmp/outputs/output_path/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def negative_sampling_op(
+            output_path,
+        ):
+            """Run the negative sampling pipeline script.
+
+            Args:
+                output_path (str): Path where the output file will be stored.
+
+            Returns:
+                NamedTuple: A named tuple containing the output_path.
+
+            Raises:
+                SystemExit: If the pipeline script is not found or fails to execute.
+            """
+            import os
+            import subprocess
+            import sys
+            from pathlib import Path
+
+            print("Checking volume mounts:")
+            print(f"Contents of /app: {os.listdir('/app')}")
+            print(f"Contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}")
+            print(f"Contents of /data: {os.listdir('/data')}")
+
+            # Create parent directory for output if it doesn't exist
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+            # Ensure output directory exists
+            os.makedirs("/tmp/outputs/output_path", exist_ok=True)
+
+            # Check for pipeline script existence
+            pipeline_path = "/app/src/feature_engineer/010_negative_sample.py"
+            working_dir = "/app/src/feature_engineer"
+            print(f"Looking for pipeline at: {pipeline_path}")
+            print(f"Current working directory: {os.getcwd()}")
+            print(f"Directory contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}")
+
+            if not os.path.exists(pipeline_path):
+                print(f"Error: File not found at {pipeline_path}")
+                print(f"Current working directory: {os.getcwd()}")
+                print(f"Directory contents: {os.listdir('/app/src/feature_engineer')}")
+                sys.exit(1)
+
+            try:
+                print(f"Running command: uv run {pipeline_path}")
+                subprocess.run(["uv", "run", pipeline_path], check=True, cwd=working_dir)
+            except subprocess.CalledProcessError as e:
+                print(f"Error running pipeline: {e}")
+                print(f"Command output: {e.output if hasattr(e, 'output') else 'No output'}")
+                sys.exit(1)
+
+            return (output_path,)
+
+        def _serialize_str(str_value: str) -> str:
+            if not isinstance(str_value, str):
+                raise TypeError('Value "{}" has type "{}" instead of str.'.format(str(str_value), str(type(str_value))))
+            return str_value
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Negative sampling op', description='Run the negative sampling pipeline script.')
+        _parser.add_argument("--output-path", dest="output_path", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=1)
+        _parsed_args = vars(_parser.parse_args())
+        _output_files = _parsed_args.pop("_output_paths", [])
+
+        _outputs = negative_sampling_op(**_parsed_args)
+
+        _output_serializers = [
+            _serialize_str,
+
+        ]
+
+        import os
+        for idx, output_file in enumerate(_output_files):
+            try:
+                os.makedirs(os.path.dirname(output_file))
+            except OSError:
+                pass
+            with open(output_file, 'w') as f:
+                f.write(_output_serializers[idx](_outputs[idx]))
+      env:
+      - {name: PVC_PATH, value: /data}
+      - name: AWS_REGION
+        valueFrom:
+          secretKeyRef: {key: AWS_REGION, name: aws-credentials}
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef: {key: AWS_ACCESS_KEY_ID, name: aws-credentials}
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef: {key: AWS_SECRET_ACCESS_KEY, name: aws-credentials}
+      - name: S3_BUCKET
+        valueFrom:
+          secretKeyRef: {key: S3_BUCKET, name: aws-credentials}
+      - name: POSTGRES_URI_REGISTRY
+        valueFrom:
+          secretKeyRef: {key: POSTGRES_URI_REGISTRY, name: aws-credentials}
+      image: kubeflow-pipeline:v5
+      resources:
+        requests: {memory: 2Gi}
+      volumeMounts:
+      - {mountPath: /data, name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7}
+    outputs:
+      artifacts:
+      - {name: negative-sampling-op-output_path, path: /tmp/outputs/output_path/data}
+    metadata:
+      annotations: {debug/mount-path: /data, pipelines.kubeflow.org/component_spec: '{"description":
+          "Run the negative sampling pipeline script.", "implementation": {"container":
+          {"args": ["--output-path", {"inputValue": "output_path"}, "----output-paths",
+          {"outputPath": "output_path"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def negative_sampling_op(\n    output_path,\n):\n    \"\"\"Run the negative
+          sampling pipeline script.\n\n    Args:\n        output_path (str): Path
+          where the output file will be stored.\n\n    Returns:\n        NamedTuple:
+          A named tuple containing the output_path.\n\n    Raises:\n        SystemExit:
+          If the pipeline script is not found or fails to execute.\n    \"\"\"\n    import
+          os\n    import subprocess\n    import sys\n    from pathlib import Path\n\n    print(\"Checking
+          volume mounts:\")\n    print(f\"Contents of /app: {os.listdir(''/app'')}\")\n    print(f\"Contents
+          of /app/src/feature_engineer: {os.listdir(''/app/src/feature_engineer'')}\")\n    print(f\"Contents
+          of /data: {os.listdir(''/data'')}\")\n\n    # Create parent directory for
+          output if it doesn''t exist\n    Path(output_path).parent.mkdir(parents=True,
+          exist_ok=True)\n\n    # Ensure output directory exists\n    os.makedirs(\"/tmp/outputs/output_path\",
+          exist_ok=True)\n\n    # Check for pipeline script existence\n    pipeline_path
+          = \"/app/src/feature_engineer/010_negative_sample.py\"\n    working_dir
+          = \"/app/src/feature_engineer\"\n    print(f\"Looking for pipeline at: {pipeline_path}\")\n    print(f\"Current
+          working directory: {os.getcwd()}\")\n    print(f\"Directory contents of
+          /app/src/feature_engineer: {os.listdir(''/app/src/feature_engineer'')}\")\n\n    if
+          not os.path.exists(pipeline_path):\n        print(f\"Error: File not found
+          at {pipeline_path}\")\n        print(f\"Current working directory: {os.getcwd()}\")\n        print(f\"Directory
+          contents: {os.listdir(''/app/src/feature_engineer'')}\")\n        sys.exit(1)\n\n    try:\n        print(f\"Running
+          command: uv run {pipeline_path}\")\n        subprocess.run([\"uv\", \"run\",
+          pipeline_path], check=True, cwd=working_dir)\n    except subprocess.CalledProcessError
+          as e:\n        print(f\"Error running pipeline: {e}\")\n        print(f\"Command
+          output: {e.output if hasattr(e, ''output'') else ''No output''}\")\n        sys.exit(1)\n\n    return
+          (output_path,)\n\ndef _serialize_str(str_value: str) -> str:\n    if not
+          isinstance(str_value, str):\n        raise TypeError(''Value \"{}\" has
+          type \"{}\" instead of str.''.format(str(str_value), str(type(str_value))))\n    return
+          str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Negative
+          sampling op'', description=''Run the negative sampling pipeline script.'')\n_parser.add_argument(\"--output-path\",
+          dest=\"output_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\",
+          dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files
+          = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = negative_sampling_op(**_parsed_args)\n\n_output_serializers
+          = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
+          OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
+          "image": "kubeflow-pipeline:v5"}}, "inputs": [{"description": "Path where
+          the output file will be stored.", "name": "output_path", "type": "String"}],
+          "name": "Negative sampling op", "outputs": [{"name": "output_path", "type":
+          "String"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"output_path":
+          "/data/papermill-output/negative-sampling-output.ipynb"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+    volumes:
+    - name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7
+      persistentVolumeClaim: {claimName: data-pvc}
+  - name: prep-item2vec-op
+    container:
+      args: [--output-path, /data/papermill-output/prep-item2vec-output.ipynb, '----output-paths',
+        /tmp/outputs/output_path/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def prep_item2vec_op(
+            output_path,
+        ):
+            """Run the Item2Vec preparation pipeline script.
+
+            Args:
+                output_path (str): Path where the output file will be stored.
+
+            Returns:
+                NamedTuple: A named tuple containing the output_path.
+
+            Raises:
+                SystemExit: If the pipeline script is not found or fails to execute.
+            """
+            import os
+            import subprocess
+            import sys
+            from pathlib import Path
+
+            print("Checking volume mounts:")
+            print(f"Contents of /app: {os.listdir('/app')}")
+            print(f"Contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}")
+            print(f"Contents of /data: {os.listdir('/data')}")
+
+            # Create parent directory for output if it doesn't exist
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+            # Ensure output directory exists
+            os.makedirs("/tmp/outputs/output_path", exist_ok=True)
+
+            # Check for pipeline script existence
+            pipeline_path = "/app/src/feature_engineer/020_prep_item2vec.py"
+            working_dir = "/app/src/feature_engineer"
+            print(f"Looking for pipeline at: {pipeline_path}")
+            print(f"Current working directory: {os.getcwd()}")
+            print(f"Directory contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}")
+
+            if not os.path.exists(pipeline_path):
+                print(f"Error: File not found at {pipeline_path}")
+                print(f"Current working directory: {os.getcwd()}")
+                print(f"Directory contents: {os.listdir('/app/src/feature_engineer')}")
+                sys.exit(1)
+
+            try:
+                print(f"Running command: uv run {pipeline_path}")
+                subprocess.run(["uv", "run", pipeline_path], check=True, cwd=working_dir)
+            except subprocess.CalledProcessError as e:
+                print(f"Error running pipeline: {e}")
+                print(f"Command output: {e.output if hasattr(e, 'output') else 'No output'}")
+                sys.exit(1)
+
+            return (output_path,)
+
+        def _serialize_str(str_value: str) -> str:
+            if not isinstance(str_value, str):
+                raise TypeError('Value "{}" has type "{}" instead of str.'.format(str(str_value), str(type(str_value))))
+            return str_value
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Prep item2vec op', description='Run the Item2Vec preparation pipeline script.')
+        _parser.add_argument("--output-path", dest="output_path", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=1)
+        _parsed_args = vars(_parser.parse_args())
+        _output_files = _parsed_args.pop("_output_paths", [])
+
+        _outputs = prep_item2vec_op(**_parsed_args)
+
+        _output_serializers = [
+            _serialize_str,
+
+        ]
+
+        import os
+        for idx, output_file in enumerate(_output_files):
+            try:
+                os.makedirs(os.path.dirname(output_file))
+            except OSError:
+                pass
+            with open(output_file, 'w') as f:
+                f.write(_output_serializers[idx](_outputs[idx]))
+      env:
+      - {name: PVC_PATH, value: /data}
+      image: kubeflow-pipeline:v5
+      resources:
+        requests: {memory: 2Gi}
+      volumeMounts:
+      - {mountPath: /data, name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7}
+    outputs:
+      artifacts:
+      - {name: prep-item2vec-op-output_path, path: /tmp/outputs/output_path/data}
+    metadata:
+      annotations: {debug/mount-path: /data, pipelines.kubeflow.org/component_spec: '{"description":
+          "Run the Item2Vec preparation pipeline script.", "implementation": {"container":
+          {"args": ["--output-path", {"inputValue": "output_path"}, "----output-paths",
+          {"outputPath": "output_path"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def prep_item2vec_op(\n    output_path,\n):\n    \"\"\"Run the Item2Vec
+          preparation pipeline script.\n\n    Args:\n        output_path (str): Path
+          where the output file will be stored.\n\n    Returns:\n        NamedTuple:
+          A named tuple containing the output_path.\n\n    Raises:\n        SystemExit:
+          If the pipeline script is not found or fails to execute.\n    \"\"\"\n    import
+          os\n    import subprocess\n    import sys\n    from pathlib import Path\n\n    print(\"Checking
+          volume mounts:\")\n    print(f\"Contents of /app: {os.listdir(''/app'')}\")\n    print(f\"Contents
+          of /app/src/feature_engineer: {os.listdir(''/app/src/feature_engineer'')}\")\n    print(f\"Contents
+          of /data: {os.listdir(''/data'')}\")\n\n    # Create parent directory for
+          output if it doesn''t exist\n    Path(output_path).parent.mkdir(parents=True,
+          exist_ok=True)\n\n    # Ensure output directory exists\n    os.makedirs(\"/tmp/outputs/output_path\",
+          exist_ok=True)\n\n    # Check for pipeline script existence\n    pipeline_path
+          = \"/app/src/feature_engineer/020_prep_item2vec.py\"\n    working_dir =
+          \"/app/src/feature_engineer\"\n    print(f\"Looking for pipeline at: {pipeline_path}\")\n    print(f\"Current
+          working directory: {os.getcwd()}\")\n    print(f\"Directory contents of
+          /app/src/feature_engineer: {os.listdir(''/app/src/feature_engineer'')}\")\n\n    if
+          not os.path.exists(pipeline_path):\n        print(f\"Error: File not found
+          at {pipeline_path}\")\n        print(f\"Current working directory: {os.getcwd()}\")\n        print(f\"Directory
+          contents: {os.listdir(''/app/src/feature_engineer'')}\")\n        sys.exit(1)\n\n    try:\n        print(f\"Running
+          command: uv run {pipeline_path}\")\n        subprocess.run([\"uv\", \"run\",
+          pipeline_path], check=True, cwd=working_dir)\n    except subprocess.CalledProcessError
+          as e:\n        print(f\"Error running pipeline: {e}\")\n        print(f\"Command
+          output: {e.output if hasattr(e, ''output'') else ''No output''}\")\n        sys.exit(1)\n\n    return
+          (output_path,)\n\ndef _serialize_str(str_value: str) -> str:\n    if not
+          isinstance(str_value, str):\n        raise TypeError(''Value \"{}\" has
+          type \"{}\" instead of str.''.format(str(str_value), str(type(str_value))))\n    return
+          str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog=''Prep
+          item2vec op'', description=''Run the Item2Vec preparation pipeline script.'')\n_parser.add_argument(\"--output-path\",
+          dest=\"output_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\",
+          dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files
+          = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = prep_item2vec_op(**_parsed_args)\n\n_output_serializers
+          = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
+          OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
+          "image": "kubeflow-pipeline:v5"}}, "inputs": [{"description": "Path where
+          the output file will be stored.", "name": "output_path", "type": "String"}],
+          "name": "Prep item2vec op", "outputs": [{"name": "output_path", "type":
+          "String"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"output_path":
+          "/data/papermill-output/prep-item2vec-output.ipynb"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+    volumes:
+    - name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7
+      persistentVolumeClaim: {claimName: data-pvc}
+  - name: train-item2vec-op
+    container:
+      args: [--output-path, /data/papermill-output/train-item2vec-output, '----output-paths',
+        /tmp/outputs/output_path/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def train_item2vec_op(
+            output_path,
+        ):
+            """Run the Item2Vec training script.
+
+            Args:
+                output_path (str): Path where the output file will be stored.
+
+            Returns:
+                NamedTuple: A named tuple containing the output_path.
+
+            Raises:
+                SystemExit: If the training script is not found or fails to execute.
+            """
+            import os
+            import subprocess
+            import sys
+            from pathlib import Path
+
+            print("Checking volume mounts:")
+            print(f"Contents of /app: {os.listdir('/app')}")
+            print(f"Contents of /app/src/model_item2vec: {os.listdir('/app/src/model_item2vec')}")
+            print(f"Contents of /data: {os.listdir('/data')}")
+
+            # Create parent directory for output if it doesn't exist
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+            # Ensure output directory exists
+            os.makedirs("/tmp/outputs/output_path", exist_ok=True)
+
+            # Check for training script existence
+            script_path = "/app/src/model_item2vec/main.py"
+            working_dir = "/app/src/model_item2vec"
+            print(f"Looking for script at: {script_path}")
+            print(f"Current working directory: {os.getcwd()}")
+            print(f"Directory contents of /app/src/model_item2vec: {os.listdir('/app/src/model_item2vec')}")
+
+            if not os.path.exists(script_path):
+                print(f"Error: File not found at {script_path}")
+                print(f"Current working directory: {os.getcwd()}")
+                print(f"Directory contents: {os.listdir('/app/src/model_item2vec')}")
+                sys.exit(1)
+
+            try:
+                print(f"Running command: uv run {script_path}")
+                env = os.environ.copy()
+                env["PYTHONPATH"] = "/app/src"
+                subprocess.run(["uv", "run", script_path], check=True, cwd=working_dir, env=env)
+            except subprocess.CalledProcessError as e:
+                print(f"Error running script: {e}")
+                print(f"Command output: {e.output if hasattr(e, 'output') else 'No output'}")
+                sys.exit(1)
+
+            return (output_path,)
+
+        def _serialize_str(str_value: str) -> str:
+            if not isinstance(str_value, str):
+                raise TypeError('Value "{}" has type "{}" instead of str.'.format(str(str_value), str(type(str_value))))
+            return str_value
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Train item2vec op', description='Run the Item2Vec training script.')
+        _parser.add_argument("--output-path", dest="output_path", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=1)
+        _parsed_args = vars(_parser.parse_args())
+        _output_files = _parsed_args.pop("_output_paths", [])
+
+        _outputs = train_item2vec_op(**_parsed_args)
+
+        _output_serializers = [
+            _serialize_str,
+
+        ]
+
+        import os
+        for idx, output_file in enumerate(_output_files):
+            try:
+                os.makedirs(os.path.dirname(output_file))
+            except OSError:
+                pass
+            with open(output_file, 'w') as f:
+                f.write(_output_serializers[idx](_outputs[idx]))
+      env:
+      - {name: PVC_PATH, value: /data}
+      image: kubeflow-pipeline:v5
+      resources:
+        requests: {memory: 2Gi}
+      volumeMounts:
+      - {mountPath: /data, name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7}
+    outputs:
+      artifacts:
+      - {name: train-item2vec-op-output_path, path: /tmp/outputs/output_path/data}
+    metadata:
+      annotations: {debug/mount-path: /data, pipelines.kubeflow.org/component_spec: '{"description":
+          "Run the Item2Vec training script.", "implementation": {"container": {"args":
+          ["--output-path", {"inputValue": "output_path"}, "----output-paths", {"outputPath":
+          "output_path"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def train_item2vec_op(\n    output_path,\n):\n    \"\"\"Run the Item2Vec
+          training script.\n\n    Args:\n        output_path (str): Path where the
+          output file will be stored.\n\n    Returns:\n        NamedTuple: A named
+          tuple containing the output_path.\n\n    Raises:\n        SystemExit: If
+          the training script is not found or fails to execute.\n    \"\"\"\n    import
+          os\n    import subprocess\n    import sys\n    from pathlib import Path\n\n    print(\"Checking
+          volume mounts:\")\n    print(f\"Contents of /app: {os.listdir(''/app'')}\")\n    print(f\"Contents
+          of /app/src/model_item2vec: {os.listdir(''/app/src/model_item2vec'')}\")\n    print(f\"Contents
+          of /data: {os.listdir(''/data'')}\")\n\n    # Create parent directory for
+          output if it doesn''t exist\n    Path(output_path).parent.mkdir(parents=True,
+          exist_ok=True)\n\n    # Ensure output directory exists\n    os.makedirs(\"/tmp/outputs/output_path\",
+          exist_ok=True)\n\n    # Check for training script existence\n    script_path
+          = \"/app/src/model_item2vec/main.py\"\n    working_dir = \"/app/src/model_item2vec\"\n    print(f\"Looking
+          for script at: {script_path}\")\n    print(f\"Current working directory:
+          {os.getcwd()}\")\n    print(f\"Directory contents of /app/src/model_item2vec:
+          {os.listdir(''/app/src/model_item2vec'')}\")\n\n    if not os.path.exists(script_path):\n        print(f\"Error:
+          File not found at {script_path}\")\n        print(f\"Current working directory:
+          {os.getcwd()}\")\n        print(f\"Directory contents: {os.listdir(''/app/src/model_item2vec'')}\")\n        sys.exit(1)\n\n    try:\n        print(f\"Running
+          command: uv run {script_path}\")\n        env = os.environ.copy()\n        env[\"PYTHONPATH\"]
+          = \"/app/src\"\n        subprocess.run([\"uv\", \"run\", script_path], check=True,
+          cwd=working_dir, env=env)\n    except subprocess.CalledProcessError as e:\n        print(f\"Error
+          running script: {e}\")\n        print(f\"Command output: {e.output if hasattr(e,
+          ''output'') else ''No output''}\")\n        sys.exit(1)\n\n    return (output_path,)\n\ndef
+          _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value,
+          str):\n        raise TypeError(''Value \"{}\" has type \"{}\" instead of
+          str.''.format(str(str_value), str(type(str_value))))\n    return str_value\n\nimport
+          argparse\n_parser = argparse.ArgumentParser(prog=''Train item2vec op'',
+          description=''Run the Item2Vec training script.'')\n_parser.add_argument(\"--output-path\",
+          dest=\"output_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\",
+          dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files
+          = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = train_item2vec_op(**_parsed_args)\n\n_output_serializers
+          = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
+          OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
+          "image": "kubeflow-pipeline:v5"}}, "inputs": [{"description": "Path where
+          the output file will be stored.", "name": "output_path", "type": "String"}],
+          "name": "Train item2vec op", "outputs": [{"name": "output_path", "type":
+          "String"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"output_path":
+          "/data/papermill-output/train-item2vec-output"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+    volumes:
+    - name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7
+      persistentVolumeClaim: {claimName: data-pvc}
+  - name: train-ranking-sequence-op
+    container:
+      args: [--output-path, /data/papermill-output/train-ranking_sequence-output,
+        '----output-paths', /tmp/outputs/output_path/data]
+      command:
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp)
+        printf "%s" "$0" > "$program_path"
+        python3 -u "$program_path" "$@"
+      - |
+        def train_ranking_sequence_op(
+            output_path,
+        ):
+            """Run the ranking sequence training script.
+
+            Args:
+                output_path (str): Path where the output file will be stored.
+
+            Returns:
+                NamedTuple: A named tuple containing the output_path.
+
+            Raises:
+                SystemExit: If the training script is not found or fails to execute.
+            """
+            import os
+            import subprocess
+            import sys
+            from pathlib import Path
+
+            print("Checking volume mounts:")
+            print(f"Contents of /app: {os.listdir('/app')}")
+            print(f"Contents of /app/src/model_ranking_sequence: {os.listdir('/app/src/model_ranking_sequence')}")
+            print(f"Contents of /data: {os.listdir('/data')}")
+
+            # Create parent directory for output if it doesn't exist
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+            # Ensure output directory exists
+            os.makedirs("/tmp/outputs/output_path", exist_ok=True)
+
+            # Check for training script existence
+            script_path = "/app/src/model_ranking_sequence/main.py"
+            working_dir = "/app/src/model_ranking_sequence"
+            print(f"Looking for script at: {script_path}")
+            print(f"Current working directory: {os.getcwd()}")
+            print(f"Directory contents of /app/src/model_ranking_sequence: {os.listdir('/app/src/model_ranking_sequence')}")
+
+            if not os.path.exists(script_path):
+                print(f"Error: File not found at {script_path}")
+                print(f"Current working directory: {os.getcwd()}")
+                print(f"Directory contents: {os.listdir('/app/src/model_ranking_sequence')}")
+                sys.exit(1)
+
+            try:
+                print(f"Running command: uv run {script_path}")
+                env = os.environ.copy()
+                env["PYTHONPATH"] = "/app/src"
+                subprocess.run(["uv", "run", script_path], check=True, cwd=working_dir, env=env)
+            except subprocess.CalledProcessError as e:
+                print(f"Error running script: {e}")
+                print(f"Command output: {e.output if hasattr(e, 'output') else 'No output'}")
+                sys.exit(1)
+
+            return (output_path,)
+
+        def _serialize_str(str_value: str) -> str:
+            if not isinstance(str_value, str):
+                raise TypeError('Value "{}" has type "{}" instead of str.'.format(str(str_value), str(type(str_value))))
+            return str_value
+
+        import argparse
+        _parser = argparse.ArgumentParser(prog='Train ranking sequence op', description='Run the ranking sequence training script.')
+        _parser.add_argument("--output-path", dest="output_path", type=str, required=True, default=argparse.SUPPRESS)
+        _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=1)
+        _parsed_args = vars(_parser.parse_args())
+        _output_files = _parsed_args.pop("_output_paths", [])
+
+        _outputs = train_ranking_sequence_op(**_parsed_args)
+
+        _output_serializers = [
+            _serialize_str,
+
+        ]
+
+        import os
+        for idx, output_file in enumerate(_output_files):
+            try:
+                os.makedirs(os.path.dirname(output_file))
+            except OSError:
+                pass
+            with open(output_file, 'w') as f:
+                f.write(_output_serializers[idx](_outputs[idx]))
+      env:
+      - {name: PVC_PATH, value: /data}
+      image: kubeflow-pipeline:v5
+      resources:
+        requests: {memory: 2Gi}
+      volumeMounts:
+      - {mountPath: /data, name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7}
+    outputs:
+      artifacts:
+      - {name: train-ranking-sequence-op-output_path, path: /tmp/outputs/output_path/data}
+    metadata:
+      annotations: {debug/mount-path: /data, pipelines.kubeflow.org/component_spec: '{"description":
+          "Run the ranking sequence training script.", "implementation": {"container":
+          {"args": ["--output-path", {"inputValue": "output_path"}, "----output-paths",
+          {"outputPath": "output_path"}], "command": ["sh", "-ec", "program_path=$(mktemp)\nprintf
+          \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+          "def train_ranking_sequence_op(\n    output_path,\n):\n    \"\"\"Run the
+          ranking sequence training script.\n\n    Args:\n        output_path (str):
+          Path where the output file will be stored.\n\n    Returns:\n        NamedTuple:
+          A named tuple containing the output_path.\n\n    Raises:\n        SystemExit:
+          If the training script is not found or fails to execute.\n    \"\"\"\n    import
+          os\n    import subprocess\n    import sys\n    from pathlib import Path\n\n    print(\"Checking
+          volume mounts:\")\n    print(f\"Contents of /app: {os.listdir(''/app'')}\")\n    print(f\"Contents
+          of /app/src/model_ranking_sequence: {os.listdir(''/app/src/model_ranking_sequence'')}\")\n    print(f\"Contents
+          of /data: {os.listdir(''/data'')}\")\n\n    # Create parent directory for
+          output if it doesn''t exist\n    Path(output_path).parent.mkdir(parents=True,
+          exist_ok=True)\n\n    # Ensure output directory exists\n    os.makedirs(\"/tmp/outputs/output_path\",
+          exist_ok=True)\n\n    # Check for training script existence\n    script_path
+          = \"/app/src/model_ranking_sequence/main.py\"\n    working_dir = \"/app/src/model_ranking_sequence\"\n    print(f\"Looking
+          for script at: {script_path}\")\n    print(f\"Current working directory:
+          {os.getcwd()}\")\n    print(f\"Directory contents of /app/src/model_ranking_sequence:
+          {os.listdir(''/app/src/model_ranking_sequence'')}\")\n\n    if not os.path.exists(script_path):\n        print(f\"Error:
+          File not found at {script_path}\")\n        print(f\"Current working directory:
+          {os.getcwd()}\")\n        print(f\"Directory contents: {os.listdir(''/app/src/model_ranking_sequence'')}\")\n        sys.exit(1)\n\n    try:\n        print(f\"Running
+          command: uv run {script_path}\")\n        env = os.environ.copy()\n        env[\"PYTHONPATH\"]
+          = \"/app/src\"\n        subprocess.run([\"uv\", \"run\", script_path], check=True,
+          cwd=working_dir, env=env)\n    except subprocess.CalledProcessError as e:\n        print(f\"Error
+          running script: {e}\")\n        print(f\"Command output: {e.output if hasattr(e,
+          ''output'') else ''No output''}\")\n        sys.exit(1)\n\n    return (output_path,)\n\ndef
+          _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value,
+          str):\n        raise TypeError(''Value \"{}\" has type \"{}\" instead of
+          str.''.format(str(str_value), str(type(str_value))))\n    return str_value\n\nimport
+          argparse\n_parser = argparse.ArgumentParser(prog=''Train ranking sequence
+          op'', description=''Run the ranking sequence training script.'')\n_parser.add_argument(\"--output-path\",
+          dest=\"output_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\",
+          dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files
+          = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = train_ranking_sequence_op(**_parsed_args)\n\n_output_serializers
+          = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except
+          OSError:\n        pass\n    with open(output_file, ''w'') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"],
+          "image": "kubeflow-pipeline:v5"}}, "inputs": [{"description": "Path where
+          the output file will be stored.", "name": "output_path", "type": "String"}],
+          "name": "Train ranking sequence op", "outputs": [{"name": "output_path",
+          "type": "String"}]}', pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"output_path":
+          "/data/papermill-output/train-ranking_sequence-output"}', pipelines.kubeflow.org/max_cache_staleness: P0D}
+    volumes:
+    - name: pvolume-903302ac6190f12f89cd550b03020463ac7bcfe6ec82089db2d3cc7
+      persistentVolumeClaim: {claimName: data-pvc}
+  arguments:
+    parameters: []
+  serviceAccountName: pipeline-runner

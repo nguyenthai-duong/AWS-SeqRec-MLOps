@@ -1,0 +1,5 @@
+aws_region        = "ap-southeast-1"
+instance_type     = "t3.medium"
+bucket_name       = "datn-docker-compose"
+s3_prefix_airflow = "airflow"
+key_name          = "datn"

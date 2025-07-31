@@ -1,0 +1,33 @@
+name: PR Agent Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  pr-agent:
+    runs-on: ubuntu-latest
+
+    permissions:
+      pull-requests: write
+      issues: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run PR Agent
+        uses: qodo-ai/pr-agent@v0.29
+        env:
+          OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTION_CONFIG_AUTO_REVIEW: "true"
+          GITHUB_ACTION_CONFIG_AUTO_DESCRIBE: "false"
+          GITHUB_ACTION_CONFIG_AUTO_IMPROVE: "false"
+          OPENAI_MODEL: "gpt-4o"
+          OPENAI_TEMPERATURE: "0.2"
+          PR_REVIEWER_RUN_ON_EVERY_COMMIT: "true"
+          PR_REVIEWER_EXTRA_INSTRUCTIONS: |
+            You are an expert code reviewer. Be concise and focus strictly on core issues. Avoid redundancy.
+          PR_SUMMARY_EXTRA_INSTRUCTIONS: |
+            Write a brief, focused summary. Only highlight key changes.

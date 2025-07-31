@@ -1,0 +1,25 @@
+namespace: mlflow
+
+minio:
+  accessKey: admin
+  secretKey: Password1234
+  storage: 5Gi
+  hostPath: "/home/duong/Documents/datn/mlflow_custom/data/minio"
+
+postgres:
+  password: Password1234
+  storage: 2Gi
+  hostPath: "/home/duong/Documents/datn/mlflow_custom/data/postgres"
+
+mlflow:
+  image: nthaiduong83/mlflow-kubeflow:v1
+  s3_endpoint: "http://minio-service:9000"
+
+storageClass:
+  name: docker-sc
+  provisioner: docker.io/hostpath
+
+istio:
+  enabled: true
+  namespace: kubeflow
+  gateway: kubeflow-gateway

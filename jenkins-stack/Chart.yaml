@@ -1,0 +1,5 @@
+apiVersion: v2
+name: jenkins-stack
+description: Jenkins for CI/CD with PVC, RBAC, Istio, custom image
+type: application
+version: 0.1.0

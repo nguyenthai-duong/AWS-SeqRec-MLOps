@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow-tracking-deployment
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: mlflow-tracking-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+    spec:
+      initContainers:
+      - name: init-minio-bucket
+        image: minio/mc
+        env:
+        - name: MC_HOST_minio
+          value: "http://{{ .Values.minio.accessKey }}:{{ .Values.minio.secretKey }}@minio-service:9000"
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          until mc alias set minio http://minio-service:9000 {{ .Values.minio.accessKey }} {{ .Values.minio.secretKey }}; do
+            echo "Waiting for MinIO to be ready...";
+            sleep 5;
+          done
+
+          if ! mc ls minio/mlflow-artifacts >/dev/null 2>&1; then
+            echo "Creating mlflow-artifacts bucket";
+            mc mb minio/mlflow-artifacts;
+            mc policy set public minio/mlflow-artifacts;
+          else
+            echo "Bucket mlflow-artifacts already exists";
+          fi
+
+      containers:
+      - name: mlflow-tracking
+        image: {{ .Values.mlflow.image }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5000
+        env:
+          - name: MLFLOW_S3_ENDPOINT_URL
+            value: "{{ .Values.mlflow.s3_endpoint }}"
+          - name: MLFLOW_S3_IGNORE_TLS
+            value: "true"
+          - name: AWS_ACCESS_KEY_ID
+            value: {{ .Values.minio.accessKey | quote }}
+          - name: AWS_SECRET_ACCESS_KEY
+            value: {{ .Values.minio.secretKey | quote }}
+        command:
+          - mlflow
+          - server
+          - --host
+          - 0.0.0.0
+          - --port
+          - "5000"
+          - --backend-store-uri
+          - "postgresql+psycopg2://postgres:{{ .Values.postgres.password }}@postgres-service:5432/postgres"
+          - --default-artifact-root
+          - "s3://mlflow-artifacts"

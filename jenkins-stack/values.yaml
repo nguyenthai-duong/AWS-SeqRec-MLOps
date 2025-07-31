@@ -1,0 +1,30 @@
+namespace: devops-tools
+
+jenkins:
+  image: nthaiduong83/jenkins-datn:v1
+  prefix: /jenkins
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "500Mi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+  storage:
+    size: 3Gi
+    hostPath: "/home/duong/Documents/datn/jenkins/data"
+    pvSize: 10Gi
+
+storageClass:
+  name: local-storage
+  provisioner: kubernetes.io/no-provisioner
+
+istio:
+  enabled: true
+  namespace: kubeflow
+  gateway: kubeflow-gateway
+
+rbac:
+  saName: jenkins-admin
+  clusterRoleName: jenkins-admin
+  roleBindTo: cluster-admin
