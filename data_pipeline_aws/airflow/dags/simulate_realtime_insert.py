@@ -1,5 +1,6 @@
 from datetime import datetime
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from airflow import DAG
@@ -82,9 +83,12 @@ def insert_one_row():
     Variable.set("current_index", current_index + 1)
 
 
+start_date_str = Variable.get("dag_start_date", default_var="2025-04-05")
+dynamic_start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+
 with DAG(
     dag_id="insert_next_row_dag",
-    start_date=datetime(2025, 4, 5),
+    start_date=dynamic_start_date,
     schedule_interval=None,
     catchup=False,
     description="Inserts exactly one row from the holdout.parquet file into the new_reviews table after manual preview",

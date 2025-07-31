@@ -2,6 +2,7 @@
 This script defines an Airflow DAG to preview the next row from a Parquet file before insertion.
 It reads the current index from Airflow Variables, displays the corresponding row, and is intended for manual approval workflows.
 """
+
 from datetime import datetime
 from pathlib import Path
 

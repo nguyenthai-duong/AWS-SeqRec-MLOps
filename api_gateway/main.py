@@ -3,6 +3,7 @@ import asyncio
 import aiohttp
 from aiohttp import ClientTimeout
 from fastapi import FastAPI, HTTPException, Query
+from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from typing import List
 import redis
@@ -38,7 +39,7 @@ tracer = trace.get_tracer(__name__)
 
 # Configure OTLP exporter to send traces to Tempo
 otlp_exporter = OTLPSpanExporter(
-    endpoint="http://lgtm-tempo-distributor.monitoring.svc.cluster.local:4318/v1/traces",  # Tempo OTLP HTTP endpoint
+    endpoint="http://lgtm-tempo-distributor.monitoring.svc.cluster.local:4318/v1/traces",
     headers={"Content-Type": "application/json"},
 )
 span_processor = BatchSpanProcessor(otlp_exporter)
@@ -47,20 +48,31 @@ trace.get_tracer_provider().add_span_processor(span_processor)
 # Instrument FastAPI
 FastAPIInstrumentor.instrument_app(app)
 
-def get_triton_client():
-    """
-    Returns a Triton Inference Server client for the FastAPI application.
-    Creates a new client if one does not exist in the application state.
+# Lifespan event handler to manage aiohttp ClientSession and Triton client
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize resources
+    app.state.http_session = aiohttp.ClientSession()
+    app.state.triton_client = InferenceServerClient(url=TRITON_URL, ssl=False)
+    logger.info("Initialized aiohttp ClientSession and Triton client")
 
-    Returns:
-        InferenceServerClient: A Triton Inference Server client instance.
-    """
-    if not hasattr(app.state, "triton_client"):
-        app.state.triton_client = InferenceServerClient(url=TRITON_URL, ssl=False)
-    return app.state.triton_client
+    try:
+        redis_client.ping()
+        logger.info("Redis connection established")
+    except redis.RedisError as e:
+        logger.error(f"Failed to connect to Redis: {e}")
+        raise RuntimeError("Redis connection failed")
 
-# Global HTTP session for async HTTP requests
-http_session: aiohttp.ClientSession = None
+    try:
+        yield  # Application runs here
+    finally:
+        # Shutdown: Clean up resources
+        await app.state.http_session.close()
+        await app.state.triton_client.close()
+        logger.info("Closed aiohttp ClientSession and Triton client")
+
+# Attach lifespan to FastAPI app
+app.lifespan = lifespan
 
 # Redis connection pool and client setup
 redis_pool = redis.ConnectionPool(
@@ -127,38 +139,6 @@ def safe_int(value, default=0):
     except (ValueError, TypeError):
         return default
 
-@app.on_event("startup")
-async def startup_event():
-    """
-    Initializes the aiohttp ClientSession and verifies Redis connection on application startup.
-
-    Raises:
-        RuntimeError: If the Redis connection fails.
-    """
-    global http_session
-    http_session = aiohttp.ClientSession()
-    logger.info("Initialized aiohttp ClientSession")
-    try:
-        redis_client.ping()
-        logger.info("Redis connection established")
-    except redis.RedisError as e:
-        logger.error(f"Failed to connect to Redis: {e}")
-        raise RuntimeError("Redis connection failed")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """
-    Cleans up resources on application shutdown, including closing the aiohttp ClientSession
-    and Triton client if they exist.
-    """
-    global http_session
-    if http_session:
-        await http_session.close()
-        logger.info("Closed aiohttp ClientSession")
-    if hasattr(app.state, "triton_client"):
-        await app.state.triton_client.close()
-        del app.state.triton_client
-
 @app.get("/popular_items")
 def get_popular_items(top_k: int = 10):
     """
@@ -200,7 +180,7 @@ async def get_user_features(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")
         HTTPException: If the external service call fails, returns a 502 status code.
     """
     try:
-        async with http_session.post(USER_FEATURE_URL, json={"user_id": user_id}, timeout=3) as response:
+        async with app.state.http_session.post(USER_FEATURE_URL, json={"user_id": user_id}, timeout=3) as response:
             response.raise_for_status()
             return await response.json()
     except aiohttp.ClientError as e:
@@ -209,7 +189,6 @@ async def get_user_features(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")
 
 @app.get("/features_parent_asin")
 async def get_item_features(parent_asin: str = Query("B000N178E2")):
-    Filipe:
     """
     Proxies a request to fetch item features from an external service.
 
@@ -223,7 +202,7 @@ async def get_item_features(parent_asin: str = Query("B000N178E2")):
         HTTPException: If the external service call fails, returns a 502 status code.
     """
     try:
-        async with http_session.post(ITEM_FEATURE_URL, json={"parent_asin": parent_asin}, timeout=3) as response:
+        async with app.state.http_session.post(ITEM_FEATURE_URL, json={"parent_asin": parent_asin}, timeout=3) as response:
             response.raise_for_status()
             return await response.json()
     except aiohttp.ClientError as e:
@@ -271,7 +250,7 @@ async def infer_score(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")):
             t0 = time.time()
             logger.debug(f"Fetching user features for user_id: {user_id}")
             with tracer.start_as_current_span("fetch_user_features") as user_span:
-                async with http_session.post(USER_FEATURE_URL, json={"user_id": user_id}, timeout=3) as response:
+                async with app.state.http_session.post(USER_FEATURE_URL, json={"user_id": user_id}, timeout=3) as response:
                     response.raise_for_status()
                     try:
                         user_features = await response.json()
@@ -345,7 +324,7 @@ async def infer_score(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")):
                     async with semaphore:
                         for attempt in range(3):
                             try:
-                                async with http_session.post(ITEM_FEATURE_URL, json={"parent_asin": item}, timeout=timeout) as response:
+                                async with app.state.http_session.post(ITEM_FEATURE_URL, json={"parent_asin": item}, timeout=timeout) as response:
                                     response.raise_for_status()
                                     features = await response.json()
                                     try:
@@ -373,7 +352,6 @@ async def infer_score(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")):
 
             # Triton inference with dynamic batching
             t8 = time.time()
-            triton_client = get_triton_client()
             async def infer_batch(batch_items, batch_features):
                 with tracer.start_as_current_span("triton_inference_batch") as triton_span:
                     batch_size = len(batch_items)
@@ -430,7 +408,7 @@ async def infer_score(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")):
 
                     outputs = [InferRequestedOutput("output")]
                     try:
-                        response = await triton_client.infer(model_name=MODEL_NAME, inputs=inputs, outputs=outputs)
+                        response = await app.state.triton_client.infer(model_name=MODEL_NAME, inputs=inputs, outputs=outputs)
                         scores = response.as_numpy("output").flatten()
                         return [{"item_id": item, "score": float(score)} for item, score in zip(batch_items, scores)]
                     except Exception as e:
@@ -462,5 +440,4 @@ async def infer_score(user_id: str = Query("AFI4TKPAEMA6VBRHQ25MUXLHEIBA")):
 
         except Exception as e:
             logger.error(f"Error in /infer: {str(e)}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Inference failed: {str(e)}") 
-
+            raise HTTPException(status_code=500, detail=f"Inference failed: {str(e)}")

@@ -1,17 +1,18 @@
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 import lightning as L
 import mlflow
 import pandas as pd
 import torch
-from torch import nn
 from evidently.metric_preset import ClassificationPreset
 from evidently.pipeline.column_mapping import ColumnMapping
 from evidently.report import Report
-from model_item2vec.model import SkipGram
 from ray import train
 from ray.train import Checkpoint
+from torch import nn
+
+from model_item2vec.model import SkipGram
 
 
 class LitSkipGram(L.LightningModule):
@@ -39,7 +40,9 @@ class LitSkipGram(L.LightningModule):
         self.log_dir = log_dir
         self.save_hyperparameters()
 
-    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def training_step(
+        self, batch: Dict[str, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
         """Perform a training step on a batch of data.
 
         Args:
@@ -70,7 +73,9 @@ class LitSkipGram(L.LightningModule):
             train.report({"train_loss": loss.item()})
         return loss
 
-    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Dict[str, torch.Tensor]:
+    def validation_step(
+        self, batch: Dict[str, torch.Tensor], batch_idx: int
+    ) -> Dict[str, torch.Tensor]:
         """Perform a validation step on a batch of data.
 
         Args:
@@ -136,7 +141,9 @@ class LitSkipGram(L.LightningModule):
 
         val_loss = self.trainer.callback_metrics.get("val_loss")
         if val_loss is not None and train.get_context().get_world_size() > 1:
-            checkpoint = Checkpoint.from_directory(self.trainer.checkpoint_callback.dirpath)
+            checkpoint = Checkpoint.from_directory(
+                self.trainer.checkpoint_callback.dirpath
+            )
             train.report({"val_loss": val_loss.item()}, checkpoint=checkpoint)
 
     def on_fit_end(self) -> None:
@@ -167,8 +174,12 @@ class LitSkipGram(L.LightningModule):
             }
         )
 
-        target_items_tensor = torch.tensor(val_df["target_items"].values, device=self.device)
-        context_items_tensor = torch.tensor(val_df["context_items"].values, device=self.device)
+        target_items_tensor = torch.tensor(
+            val_df["target_items"].values, device=self.device
+        )
+        context_items_tensor = torch.tensor(
+            val_df["context_items"].values, device=self.device
+        )
         classifications = self.skipgram_model(target_items_tensor, context_items_tensor)
 
         eval_classification_df = val_df.assign(
@@ -186,7 +197,9 @@ class LitSkipGram(L.LightningModule):
             column_mapping=column_mapping,
         )
 
-        evidently_report_fp = os.path.join(self.log_dir, "evidently_report_classification.html")
+        evidently_report_fp = os.path.join(
+            self.log_dir, "evidently_report_classification.html"
+        )
         os.makedirs(self.log_dir, exist_ok=True)
         try:
             classification_performance_report.save_html(evidently_report_fp)
@@ -198,7 +211,9 @@ class LitSkipGram(L.LightningModule):
         if mlflow.active_run():
             try:
                 if not os.path.exists(evidently_report_fp):
-                    print(f"File {evidently_report_fp} does not exist, skipping artifact logging.")
+                    print(
+                        f"File {evidently_report_fp} does not exist, skipping artifact logging."
+                    )
                 else:
                     mlflow.log_artifact(evidently_report_fp)
                     print(f"Logged artifact: {evidently_report_fp}")
@@ -206,19 +221,37 @@ class LitSkipGram(L.LightningModule):
                 print(f"Failed to log artifact {evidently_report_fp}: {str(e)}")
 
             try:
-                for metric_result in classification_performance_report.as_dict()["metrics"]:
+                for metric_result in classification_performance_report.as_dict()[
+                    "metrics"
+                ]:
                     if metric_result["metric"] == "ClassificationQualityMetric":
                         roc_auc = float(metric_result["result"]["current"]["roc_auc"])
                         mlflow.log_metric("val_roc_auc", roc_auc)
                         print(f"Logged val_roc_auc: {roc_auc}")
                     elif metric_result["metric"] == "ClassificationPRTable":
-                        columns = ["top_perc", "count", "prob", "tp", "fp", "precision", "recall"]
+                        columns = [
+                            "top_perc",
+                            "count",
+                            "prob",
+                            "tp",
+                            "fp",
+                            "precision",
+                            "recall",
+                        ]
                         table = metric_result["result"]["current"][1]
                         table_df = pd.DataFrame(table, columns=columns)
                         for _, row in table_df.iterrows():
                             prob = int(row["prob"] * 100)
-                            mlflow.log_metric("val_precision_at_prob", float(row["precision"]), step=prob)
-                            mlflow.log_metric("val_recall_at_prob", float(row["recall"]), step=prob)
-                            print(f"Logged at prob {prob}: precision={float(row['precision'])}, recall={float(row['recall'])}")
+                            mlflow.log_metric(
+                                "val_precision_at_prob",
+                                float(row["precision"]),
+                                step=prob,
+                            )
+                            mlflow.log_metric(
+                                "val_recall_at_prob", float(row["recall"]), step=prob
+                            )
+                            print(
+                                f"Logged at prob {prob}: precision={float(row['precision'])}, recall={float(row['recall'])}"
+                            )
             except Exception as e:
                 print(f"Failed to log classification metrics to MLflow: {str(e)}")

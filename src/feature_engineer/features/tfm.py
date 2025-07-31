@@ -129,7 +129,6 @@ def price_pipeline_steps(price_pattern=None):
 
     Args:
         price_pattern (str, optional): Regex pattern for price extraction.
-                                      Defaults to r"\b((?:\d+\.\d*)|(?:\d+))\b".
 
     Returns:
         list: List of tuples containing pipeline steps for price processing.

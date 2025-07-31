@@ -1,7 +1,8 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import torch
 import torch.nn as nn
+
 from model_item2vec.dataset import SkipGramDataset
 
 
@@ -21,7 +22,9 @@ class SkipGram(nn.Module):
         )
         nn.init.xavier_uniform_(self.embeddings.weight)
 
-    def forward(self, target_items: torch.Tensor, context_items: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, target_items: torch.Tensor, context_items: torch.Tensor
+    ) -> torch.Tensor:
         """Compute similarity scores between target and context items.
 
         Args:
@@ -31,11 +34,17 @@ class SkipGram(nn.Module):
         Returns:
             torch.Tensor: Predicted probabilities with shape (batch_size,).
         """
-        target_embeds = self.embeddings(target_items)  # Shape: (batch_size, embedding_dim)
-        context_embeds = self.embeddings(context_items)  # Shape: (batch_size, embedding_dim)
+        target_embeds = self.embeddings(
+            target_items
+        )  # Shape: (batch_size, embedding_dim)
+        context_embeds = self.embeddings(
+            context_items
+        )  # Shape: (batch_size, embedding_dim)
 
         # Compute dot product between target and context embeddings
-        similarity_scores = torch.sum(target_embeds * context_embeds, dim=-1)  # Shape: (batch_size,)
+        similarity_scores = torch.sum(
+            target_embeds * context_embeds, dim=-1
+        )  # Shape: (batch_size,)
 
         # Apply sigmoid to get probabilities
         probabilities = torch.sigmoid(similarity_scores)
@@ -53,9 +62,7 @@ class SkipGram(nn.Module):
         return self.embeddings(torch.tensor(item_idx, dtype=torch.long))
 
     def predict_train_batch(
-        self,
-        batch_input: Dict[str, Any],
-        device: torch.device = torch.device("cpu")
+        self, batch_input: Dict[str, Any], device: torch.device = torch.device("cpu")
     ) -> torch.Tensor:
         """Predict scores for a batch of training data.
 

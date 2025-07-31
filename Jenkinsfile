@@ -13,11 +13,6 @@ pipeline {
   }
 
   stages {
-    stage('Clone code') {
-      steps {
-        echo 'Code đã tự clone từ SCM'
-      }
-    }
 
     stage('Convert to Triton repo') {
       steps {
@@ -32,10 +27,31 @@ pipeline {
       }
     }
 
-    stage('Install awscli') {
+    stage('Test Triton repo and Install awscli') {
       steps {
         sh '''
-        pip install awscli
+        bash -c "
+          source /opt/conda/etc/profile.d/conda.sh
+          conda activate ${CONDA_ENV}
+          # Check if model repository exists and has required structure
+          if [ ! -d "./src/model_ranking_sequence/model_repository" ]; then
+            echo "Error: Model repository directory not found"
+            exit 1
+          fi
+          # Check for ONNX model file
+          if [ ! -f "./src/model_ranking_sequence/model_repository/${MODEL_NAME}/1/model.onnx" ]; then
+            echo "Error: ONNX model file not found"
+            exit 1
+          fi
+          # Check for config.pbtxt
+          if [ ! -f "./src/model_ranking_sequence/model_repository/${MODEL_NAME}/config.pbtxt" ]; then
+            echo "Error: Triton config file not found"
+            exit 1
+          fi
+          echo "Triton repository structure validated successfully"
+
+          pip install awscli
+        "
         '''
       }
     }
@@ -58,9 +74,6 @@ pipeline {
         withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY', credentialsId: 'aws-credentials')]) {
           sh '''
           export KUBECONFIG="./serving-cluster/kubeconfig-serving.yaml"
-          kubectl version
-          kubectl create ns kserve || true
-          kubectl get ns
           kubectl apply -f ./serving-cluster/inferenceservice-triton-gpu.yaml --validate=false
           sleep 5
           kubectl delete pod -n kserve -l serving.kserve.io/inferenceservice=recsys-triton || true

@@ -2,6 +2,7 @@ import json
 import logging
 import sys
 from datetime import datetime
+
 import boto3
 from awsglue.context import GlueContext
 from awsglue.dynamicframe import DynamicFrame
@@ -21,7 +22,9 @@ def configure_logging():
     Returns:
         logging.Logger: Configured logger instance.
     """
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
     return logging.getLogger(__name__)
 
 
@@ -204,13 +207,21 @@ def transform_parent_asin(df):
             F.array_distinct(F.col("categories")).alias("categories"),
             F.col("price").cast(StringType()).alias("price"),
             F.count("*").over(window_fn(365)).alias("parent_asin_rating_cnt_365d"),
-            F.avg("rating").over(window_fn(365)).alias("parent_asin_rating_avg_prev_rating_365d"),
+            F.avg("rating")
+            .over(window_fn(365))
+            .alias("parent_asin_rating_avg_prev_rating_365d"),
             F.count("*").over(window_fn(90)).alias("parent_asin_rating_cnt_90d"),
-            F.avg("rating").over(window_fn(90)).alias("parent_asin_rating_avg_prev_rating_90d"),
+            F.avg("rating")
+            .over(window_fn(90))
+            .alias("parent_asin_rating_avg_prev_rating_90d"),
             F.count("*").over(window_fn(30)).alias("parent_asin_rating_cnt_30d"),
-            F.avg("rating").over(window_fn(30)).alias("parent_asin_rating_avg_prev_rating_30d"),
+            F.avg("rating")
+            .over(window_fn(30))
+            .alias("parent_asin_rating_avg_prev_rating_30d"),
             F.count("*").over(window_fn(7)).alias("parent_asin_rating_cnt_7d"),
-            F.avg("rating").over(window_fn(7)).alias("parent_asin_rating_avg_prev_rating_7d"),
+            F.avg("rating")
+            .over(window_fn(7))
+            .alias("parent_asin_rating_avg_prev_rating_7d"),
         ).distinct()
         logger.info(f"Transformed parent_asin data: {result_df.count()} rows")
         return result_df
@@ -445,7 +456,9 @@ def check_and_delete_s3_folder(s3_client, bucket, prefix):
         logger.info(f"Checking if objects exist in s3://{bucket}/{prefix}")
         response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
         if "Contents" in response and len(response["Contents"]) > 0:
-            logger.info(f"Objects found in s3://{bucket}/{prefix}. Deleting all objects...")
+            logger.info(
+                f"Objects found in s3://{bucket}/{prefix}. Deleting all objects..."
+            )
             objects_to_delete = [{"Key": obj["Key"]} for obj in response["Contents"]]
             while response.get("IsTruncated", False):
                 response = s3_client.list_objects_v2(
@@ -459,7 +472,9 @@ def check_and_delete_s3_folder(s3_client, bucket, prefix):
             s3_client.delete_objects(
                 Bucket=bucket, Delete={"Objects": objects_to_delete, "Quiet": True}
             )
-            logger.info(f"Deleted {len(objects_to_delete)} objects from s3://{bucket}/{prefix}")
+            logger.info(
+                f"Deleted {len(objects_to_delete)} objects from s3://{bucket}/{prefix}"
+            )
         else:
             logger.info(f"No objects found in s3://{bucket}/{prefix}")
     except Exception as e:

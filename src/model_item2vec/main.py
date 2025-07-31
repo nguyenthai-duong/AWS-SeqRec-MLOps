@@ -2,7 +2,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import lightning as L
 import mlflow
@@ -64,7 +64,6 @@ def train_func(config: Dict[str, Any], is_final_training: bool = False) -> None:
         config (Dict[str, Any]): Configuration dictionary containing training parameters.
         is_final_training (bool): Whether this is the final training run. Defaults to False.
     """
-    import mlflow
 
     logger.info(f"Current working directory: {os.getcwd()}")
     logger.info(f"Train function config: {config}")
@@ -75,7 +74,9 @@ def train_func(config: Dict[str, Any], is_final_training: bool = False) -> None:
         mlflow.set_tracking_uri(config["mlflow_tracking_uri"])
         base_experiment = config["run_name"]
         experiment_name = (
-            f"{base_experiment}/final_model" if is_final_training else f"{base_experiment}/hyperparameter_tuning"
+            f"{base_experiment}/final_model"
+            if is_final_training
+            else f"{base_experiment}/hyperparameter_tuning"
         )
 
         try:
@@ -96,13 +97,16 @@ def train_func(config: Dict[str, Any], is_final_training: bool = False) -> None:
             "model_type": config["model_type"],
             "dataset_version": config["dataset_version"],
         }
-        run_name = "Final Model - SkipGram" if is_final_training else "Hyperparameter Tuning"
+        run_name = (
+            "Final Model - SkipGram" if is_final_training else "Hyperparameter Tuning"
+        )
         mlflow_run = mlflow.start_run(run_name=run_name, tags=tags)
 
         params_to_log = {
             f"{'final' if is_final_training else 'tuning'}.{k}": v
             for k, v in config.items()
-            if k in [
+            if k
+            in [
                 "max_epochs",
                 "batch_size",
                 "num_negative_samples",
@@ -119,7 +123,9 @@ def train_func(config: Dict[str, Any], is_final_training: bool = False) -> None:
                 "python_version": sys.version,
                 "torch_version": torch.__version__,
                 "cuda_available": torch.cuda.is_available(),
-                "cuda_version": torch.version.cuda if torch.cuda.is_available() else "N/A",
+                "cuda_version": (
+                    torch.version.cuda if torch.cuda.is_available() else "N/A"
+                ),
                 "num_cpus": psutil.cpu_count(),
                 "total_memory_gb": psutil.virtual_memory().total / (1024**3),
             }
@@ -174,7 +180,11 @@ def train_func(config: Dict[str, Any], is_final_training: bool = False) -> None:
             l2_reg=config["l2_reg"],
             log_dir=os.path.join(
                 config["checkpoint_dir"],
-                f"trial_{train.get_context().get_trial_id()}" if not is_final_training else "final_model",
+                (
+                    f"trial_{train.get_context().get_trial_id()}"
+                    if not is_final_training
+                    else "final_model"
+                ),
             ),
         )
 
@@ -186,7 +196,11 @@ def train_func(config: Dict[str, Any], is_final_training: bool = False) -> None:
                 L.pytorch.callbacks.ModelCheckpoint(
                     dirpath=os.path.join(
                         config["checkpoint_dir"],
-                        f"trial_{train.get_context().get_trial_id()}" if not is_final_training else "final_model",
+                        (
+                            f"trial_{train.get_context().get_trial_id()}"
+                            if not is_final_training
+                            else "final_model"
+                        ),
                     ),
                     filename=config["checkpoint_filename"],
                     save_top_k=config["checkpoint_save_top_k"],
@@ -205,7 +219,9 @@ def train_func(config: Dict[str, Any], is_final_training: bool = False) -> None:
 
         trainer.fit(lit_model, train_loader, val_loader)
         training_time = time.time() - start_time
-        val_loss = trainer.callback_metrics.get("val_loss", torch.tensor(float("inf"))).item()
+        val_loss = trainer.callback_metrics.get(
+            "val_loss", torch.tensor(float("inf"))
+        ).item()
 
         if not is_final_training:
             train.report({"val_loss": val_loss})
@@ -214,16 +230,25 @@ def train_func(config: Dict[str, Any], is_final_training: bool = False) -> None:
             try:
                 metrics_to_log = {
                     "val_loss": val_loss,
-                    "train_loss": trainer.callback_metrics.get("train_loss", torch.tensor(float("inf"))).item(),
+                    "train_loss": trainer.callback_metrics.get(
+                        "train_loss", torch.tensor(float("inf"))
+                    ).item(),
                     "training_time_seconds": training_time,
                 }
                 if torch.cuda.is_available():
-                    metrics_to_log["gpu_memory_allocated_mb"] = torch.cuda.memory_allocated() / (1024**2)
-                    metrics_to_log["gpu_memory_reserved_mb"] = torch.cuda.memory_reserved() / (1024**2)
-                metrics_to_log["cpu_memory_usage_percent"] = psutil.Process().memory_percent()
+                    metrics_to_log["gpu_memory_allocated_mb"] = (
+                        torch.cuda.memory_allocated() / (1024**2)
+                    )
+                    metrics_to_log["gpu_memory_reserved_mb"] = (
+                        torch.cuda.memory_reserved() / (1024**2)
+                    )
+                metrics_to_log["cpu_memory_usage_percent"] = (
+                    psutil.Process().memory_percent()
+                )
 
                 metrics_to_log = {
-                    f"{'final' if is_final_training else 'tuning'}.{k}": v for k, v in metrics_to_log.items()
+                    f"{'final' if is_final_training else 'tuning'}.{k}": v
+                    for k, v in metrics_to_log.items()
                 }
                 for metric_name, metric_value in metrics_to_log.items():
                     try:
@@ -234,10 +259,14 @@ def train_func(config: Dict[str, Any], is_final_training: bool = False) -> None:
 
                 if is_final_training:
                     try:
-                        idm_temp_path = os.path.join(config["checkpoint_dir"], "id_mapper.json")
+                        idm_temp_path = os.path.join(
+                            config["checkpoint_dir"], "id_mapper.json"
+                        )
                         idm.save(idm_temp_path)
                         mlflow.log_artifact(idm_temp_path, artifact_path="id_mapper")
-                        logger.info(f"IDMapper saved and logged as artifact at {idm_temp_path}")
+                        logger.info(
+                            f"IDMapper saved and logged as artifact at {idm_temp_path}"
+                        )
 
                         import numpy as np
                         from mlflow.models.signature import ModelSignature
@@ -245,12 +274,24 @@ def train_func(config: Dict[str, Any], is_final_training: bool = False) -> None:
 
                         input_schema = Schema(
                             [
-                                TensorSpec(name="target_items", type=np.dtype(np.int64), shape=(-1,)),
-                                TensorSpec(name="context_items", type=np.dtype(np.int64), shape=(-1,)),
+                                TensorSpec(
+                                    name="target_items",
+                                    type=np.dtype(np.int64),
+                                    shape=(-1,),
+                                ),
+                                TensorSpec(
+                                    name="context_items",
+                                    type=np.dtype(np.int64),
+                                    shape=(-1,),
+                                ),
                             ]
                         )
-                        output_schema = Schema([TensorSpec(type=np.dtype(np.float32), shape=(-1,))])
-                        signature = ModelSignature(inputs=input_schema, outputs=output_schema)
+                        output_schema = Schema(
+                            [TensorSpec(type=np.dtype(np.float32), shape=(-1,))]
+                        )
+                        signature = ModelSignature(
+                            inputs=input_schema, outputs=output_schema
+                        )
 
                         model_metadata = {
                             "model_type": config["model_type"],
@@ -293,7 +334,9 @@ def train_func(config: Dict[str, Any], is_final_training: bool = False) -> None:
                         logger.info("TorchScript model logged successfully.")
 
                         client = mlflow.tracking.MlflowClient()
-                        latest_versions = client.get_latest_versions(f"{config['run_name']}_skipgram", stages=["None"])
+                        latest_versions = client.get_latest_versions(
+                            f"{config['run_name']}_skipgram", stages=["None"]
+                        )
                         client.update_model_version(
                             name=f"{config['run_name']}_skipgram",
                             version=latest_versions[0].version,
@@ -304,21 +347,28 @@ def train_func(config: Dict[str, Any], is_final_training: bool = False) -> None:
                         is_champion = True
                         worse_versions = []
 
-                        for v in client.search_model_versions(f"name='{config['run_name']}_skipgram'"):
+                        for v in client.search_model_versions(
+                            f"name='{config['run_name']}_skipgram'"
+                        ):
                             if v.run_id == this_version.run_id:
                                 continue
                             try:
                                 run_data = client.get_run(v.run_id).data
-                                other_val_loss = run_data.metrics.get("final.val_loss") or run_data.metrics.get(
-                                    "tuning.val_loss"
-                                )
-                                if other_val_loss is not None and other_val_loss < this_val_loss:
+                                other_val_loss = run_data.metrics.get(
+                                    "final.val_loss"
+                                ) or run_data.metrics.get("tuning.val_loss")
+                                if (
+                                    other_val_loss is not None
+                                    and other_val_loss < this_val_loss
+                                ):
                                     is_champion = False
                                     break
                                 if other_val_loss is not None:
                                     worse_versions.append(v)
                             except Exception as e:
-                                logger.warning(f"Cannot load run data for version {v.version}: {str(e)}")
+                                logger.warning(
+                                    f"Cannot load run data for version {v.version}: {str(e)}"
+                                )
 
                         if is_champion:
                             client.set_model_version_tag(
@@ -337,15 +387,21 @@ def train_func(config: Dict[str, Any], is_final_training: bool = False) -> None:
                                         version=v.version,
                                         key="champion",
                                     )
-                                    logger.info(f"Removed champion tag from version {v.version}")
+                                    logger.info(
+                                        f"Removed champion tag from version {v.version}"
+                                    )
                                 except Exception as e:
-                                    logger.warning(f"Failed to remove champion tag from version {v.version}: {str(e)}")
+                                    logger.warning(
+                                        f"Failed to remove champion tag from version {v.version}: {str(e)}"
+                                    )
                         else:
                             logger.info(
                                 f"Model version {this_version.version} is NOT champion (val_loss = {this_val_loss:.4f})"
                             )
                     except Exception as e:
-                        logger.error(f"Error logging model or IDMapper to MLflow: {str(e)}")
+                        logger.error(
+                            f"Error logging model or IDMapper to MLflow: {str(e)}"
+                        )
             except Exception as e:
                 logger.warning(f"Failed to log metrics to MLflow: {str(e)}")
 
@@ -366,7 +422,11 @@ if __name__ == "__main__":
     logger.info(f"Loaded config: {config}")
 
     # Create and set permissions for directories
-    for directory in [config["checkpoint_dir"], config["storage_path"], config["final_checkpoint_dir"]]:
+    for directory in [
+        config["checkpoint_dir"],
+        config["storage_path"],
+        config["final_checkpoint_dir"],
+    ]:
         os.makedirs(directory, exist_ok=True)
         os.chmod(directory, 0o777)
 
@@ -424,7 +484,9 @@ if __name__ == "__main__":
     param_space = {
         "train_loop_config": {
             "embedding_dim": tune.choice(config["model"]["embedding_dim"]["choice"]),
-            "learning_rate": tune.loguniform(*config["training"]["learning_rate"]["loguniform"]),
+            "learning_rate": tune.loguniform(
+                *config["training"]["learning_rate"]["loguniform"]
+            ),
             "l2_reg": tune.loguniform(*config["training"]["l2_reg"]["loguniform"]),
         }
     }
@@ -479,21 +541,31 @@ if __name__ == "__main__":
                 "checkpoint_save_top_k": config["trainer"]["checkpoint"]["save_top_k"],
                 "checkpoint_monitor": config["trainer"]["checkpoint"]["monitor"],
                 "checkpoint_mode": config["trainer"]["checkpoint"]["mode"],
-                "early_stopping_monitor": config["trainer"]["early_stopping"]["monitor"],
-                "early_stopping_patience": config["trainer"]["early_stopping"]["patience"],
+                "early_stopping_monitor": config["trainer"]["early_stopping"][
+                    "monitor"
+                ],
+                "early_stopping_patience": config["trainer"]["early_stopping"][
+                    "patience"
+                ],
                 "early_stopping_mode": config["trainer"]["early_stopping"]["mode"],
-                "early_stopping_verbose": config["trainer"]["early_stopping"]["verbose"],
+                "early_stopping_verbose": config["trainer"]["early_stopping"][
+                    "verbose"
+                ],
             }
 
             final_trainer = TorchTrainer(
-                train_loop_per_worker=lambda config: train_func(config, is_final_training=True),
+                train_loop_per_worker=lambda config: train_func(
+                    config, is_final_training=True
+                ),
                 train_loop_config=final_config,
                 scaling_config=ScalingConfig(num_workers=1, use_gpu=True),
             )
 
             final_result = final_trainer.fit()
             logger.info("Final training completed!")
-            logger.info(f"Final model checkpoint saved at: {config['final_checkpoint_dir']}")
+            logger.info(
+                f"Final model checkpoint saved at: {config['final_checkpoint_dir']}"
+            )
     except Exception as e:
         logger.error(f"Tuning failed: {str(e)}")
         raise

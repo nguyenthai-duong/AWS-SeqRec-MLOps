@@ -28,7 +28,9 @@ def feature_engineering_op(
     # Print volume mount information for debugging
     print("Checking volume mounts:")
     print(f"Contents of /app: {os.listdir('/app')}")
-    print(f"Contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}")
+    print(
+        f"Contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}"
+    )
     print(f"Contents of /data: {os.listdir('/data')}")
 
     # Create parent directory for output if it doesn't exist
@@ -42,7 +44,9 @@ def feature_engineering_op(
     working_dir = "/app/src/feature_engineer"
     print(f"Looking for pipeline at: {pipeline_path}")
     print(f"Current working directory: {os.getcwd()}")
-    print(f"Directory contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}")
+    print(
+        f"Directory contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}"
+    )
 
     if not os.path.exists(pipeline_path):
         print(f"Error: File not found at {pipeline_path}")
@@ -82,7 +86,9 @@ def negative_sampling_op(
 
     print("Checking volume mounts:")
     print(f"Contents of /app: {os.listdir('/app')}")
-    print(f"Contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}")
+    print(
+        f"Contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}"
+    )
     print(f"Contents of /data: {os.listdir('/data')}")
 
     # Create parent directory for output if it doesn't exist
@@ -96,7 +102,9 @@ def negative_sampling_op(
     working_dir = "/app/src/feature_engineer"
     print(f"Looking for pipeline at: {pipeline_path}")
     print(f"Current working directory: {os.getcwd()}")
-    print(f"Directory contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}")
+    print(
+        f"Directory contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}"
+    )
 
     if not os.path.exists(pipeline_path):
         print(f"Error: File not found at {pipeline_path}")
@@ -136,7 +144,9 @@ def prep_item2vec_op(
 
     print("Checking volume mounts:")
     print(f"Contents of /app: {os.listdir('/app')}")
-    print(f"Contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}")
+    print(
+        f"Contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}"
+    )
     print(f"Contents of /data: {os.listdir('/data')}")
 
     # Create parent directory for output if it doesn't exist
@@ -150,7 +160,9 @@ def prep_item2vec_op(
     working_dir = "/app/src/feature_engineer"
     print(f"Looking for pipeline at: {pipeline_path}")
     print(f"Current working directory: {os.getcwd()}")
-    print(f"Directory contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}")
+    print(
+        f"Directory contents of /app/src/feature_engineer: {os.listdir('/app/src/feature_engineer')}"
+    )
 
     if not os.path.exists(pipeline_path):
         print(f"Error: File not found at {pipeline_path}")
@@ -190,7 +202,9 @@ def train_item2vec_op(
 
     print("Checking volume mounts:")
     print(f"Contents of /app: {os.listdir('/app')}")
-    print(f"Contents of /app/src/model_item2vec: {os.listdir('/app/src/model_item2vec')}")
+    print(
+        f"Contents of /app/src/model_item2vec: {os.listdir('/app/src/model_item2vec')}"
+    )
     print(f"Contents of /data: {os.listdir('/data')}")
 
     # Create parent directory for output if it doesn't exist
@@ -204,7 +218,9 @@ def train_item2vec_op(
     working_dir = "/app/src/model_item2vec"
     print(f"Looking for script at: {script_path}")
     print(f"Current working directory: {os.getcwd()}")
-    print(f"Directory contents of /app/src/model_item2vec: {os.listdir('/app/src/model_item2vec')}")
+    print(
+        f"Directory contents of /app/src/model_item2vec: {os.listdir('/app/src/model_item2vec')}"
+    )
 
     if not os.path.exists(script_path):
         print(f"Error: File not found at {script_path}")
@@ -246,7 +262,9 @@ def train_ranking_sequence_op(
 
     print("Checking volume mounts:")
     print(f"Contents of /app: {os.listdir('/app')}")
-    print(f"Contents of /app/src/model_ranking_sequence: {os.listdir('/app/src/model_ranking_sequence')}")
+    print(
+        f"Contents of /app/src/model_ranking_sequence: {os.listdir('/app/src/model_ranking_sequence')}"
+    )
     print(f"Contents of /data: {os.listdir('/data')}")
 
     # Create parent directory for output if it doesn't exist
@@ -260,7 +278,9 @@ def train_ranking_sequence_op(
     working_dir = "/app/src/model_ranking_sequence"
     print(f"Looking for script at: {script_path}")
     print(f"Current working directory: {os.getcwd()}")
-    print(f"Directory contents of /app/src/model_ranking_sequence: {os.listdir('/app/src/model_ranking_sequence')}")
+    print(
+        f"Directory contents of /app/src/model_ranking_sequence: {os.listdir('/app/src/model_ranking_sequence')}"
+    )
 
     if not os.path.exists(script_path):
         print(f"Error: File not found at {script_path}")
@@ -446,7 +466,9 @@ def feature_pipeline():
         .set_memory_request("2Gi")
         .after(feature_task)
     )
-    negative_sampling_task.execution_options.caching_strategy.max_cache_staleness = "P0D"
+    negative_sampling_task.execution_options.caching_strategy.max_cache_staleness = (
+        "P0D"
+    )
 
     prep_item2vec_task = (
         prep_item2vec_component(
@@ -482,7 +504,9 @@ def feature_pipeline():
         .set_memory_request("2Gi")
         .after(train_item2vec_task, negative_sampling_task)
     )
-    train_ranking_sequence_task.execution_options.caching_strategy.max_cache_staleness = "P0D"
+    train_ranking_sequence_task.execution_options.caching_strategy.max_cache_staleness = (
+        "P0D"
+    )
 
 
 if __name__ == "__main__":

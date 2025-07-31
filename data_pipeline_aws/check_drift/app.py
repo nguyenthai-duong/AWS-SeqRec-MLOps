@@ -1,6 +1,7 @@
 import json
 import os
 import time
+
 import boto3
 import pandas as pd
 from evidently.metric_preset import DataDriftPreset
@@ -55,7 +56,14 @@ def fix_dtypes(df):
     Returns:
         pd.DataFrame: Processed DataFrame with standardized column types and no missing values.
     """
-    cols_check = ["user_id", "parent_asin", "rating", "timestamp", "main_category", "price"]
+    cols_check = [
+        "user_id",
+        "parent_asin",
+        "rating",
+        "timestamp",
+        "main_category",
+        "price",
+    ]
     df = df.copy()
     for col in cols_check:
         if col not in df.columns:
@@ -88,15 +96,19 @@ def load_reference_data():
         database = os.getenv("RDS_DATABASE")
         schema = os.getenv("RDS_SCHEMA", "public")
         table_name = os.getenv("RDS_TABLE", "reviews")
-        connection_string = f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{database}"
+        connection_string = (
+            f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{database}"
+        )
         engine = create_engine(connection_string)
         query = f"SELECT * FROM {schema}.{table_name};"
         df_ref = pd.read_sql(query, engine)
     else:
         print("Loading reference data from local file...")
-        local_ref_path = os.getenv("LOCAL_REF_PATH", "/home/duong/Documents/datn1/data/to_insert_df.parquet")
+        local_ref_path = os.getenv(
+            "LOCAL_REF_PATH", "/home/duong/Documents/datn1/data/to_insert_df.parquet"
+        )
         df_ref = pd.read_parquet(local_ref_path)
-    
+
     print("Reference data shape:", df_ref.shape)
     df_ref = fix_dtypes(df_ref)
     print("Reference columns and types:")
@@ -234,7 +246,9 @@ def main():
     Periodically pulls records, performs drift analysis against reference data,
     logs results, and uploads HTML reports to S3.
     """
-    region, access_key, secret_key, stream_name, interval, min_messages = load_configurations()
+    region, access_key, secret_key, stream_name, interval, min_messages = (
+        load_configurations()
+    )
     kinesis_client = initialize_kinesis_client(region, access_key, secret_key)
     df_ref = load_reference_data()
     shard_iterators = get_shard_iterators(kinesis_client, stream_name)
@@ -252,14 +266,18 @@ def main():
         cached_records = []
         while count_since_last_pull < min_messages:
             time.sleep(interval)
-            total_new, all_records, shard_iterators = pull_records(kinesis_client, shard_iterators)
+            total_new, all_records, shard_iterators = pull_records(
+                kinesis_client, shard_iterators
+            )
             count_since_last_pull += total_new
             cached_records.extend(all_records)
             print(
                 f"Pulled {total_new} new message(s), total since last pull: {count_since_last_pull}"
             )
 
-        print(f"\n------ Drift check triggered: {count_since_last_pull} message(s) ------")
+        print(
+            f"\n------ Drift check triggered: {count_since_last_pull} message(s) ------"
+        )
         df_current = preprocess_df_current(cached_records)
         if df_current is None or df_current.empty:
             print("No valid current data, skip drift check.")
@@ -284,7 +302,9 @@ def main():
         report_path = f"drift_report_{int(time.time())}.html"
         report.save_html(report_path)
         print(f"Successfully exported report to file: {report_path}")
-        upload_html_to_s3(report_path, s3_bucket, s3_key, region, access_key, secret_key)
+        upload_html_to_s3(
+            report_path, s3_bucket, s3_key, region, access_key, secret_key
+        )
 
 
 if __name__ == "__main__":

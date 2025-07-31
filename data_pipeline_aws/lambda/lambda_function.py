@@ -4,6 +4,7 @@ import logging
 import os
 import traceback
 from datetime import datetime, timezone
+
 import pandas as pd
 from feast import FeatureStore
 from tenacity import retry, stop_after_attempt, wait_fixed
@@ -16,7 +17,9 @@ def configure_logging():
     Returns:
         logging.Logger: Configured logger instance.
     """
-    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(
+        level=logging.DEBUG, format="%(asctime)s %(levelname)s %(message)s"
+    )
     return logging.getLogger()
 
 
@@ -145,7 +148,9 @@ def update_and_write_to_online(user_id, asin, rating, timestamp):
         else []
     )
     old_timestamps = (
-        user_feature.get("user_rating_list_10_recent_asin_timestamp", [""])[0].split(",")
+        user_feature.get("user_rating_list_10_recent_asin_timestamp", [""])[0].split(
+            ","
+        )
         if user_feature.get("user_rating_list_10_recent_asin_timestamp", [""])[0]
         else []
     )
@@ -169,7 +174,9 @@ def update_and_write_to_online(user_id, asin, rating, timestamp):
         -1 if ts == -1 else bucketize(current_ts - ts) for ts in item_sequence_ts
     ]
     if len(item_sequence_ts_bucket) < 10:
-        item_sequence_ts_bucket = [-1] * (10 - len(item_sequence_ts_bucket)) + item_sequence_ts_bucket
+        item_sequence_ts_bucket = [-1] * (
+            10 - len(item_sequence_ts_bucket)
+        ) + item_sequence_ts_bucket
 
     # Prepare feature data for online store
     feature_data = {}

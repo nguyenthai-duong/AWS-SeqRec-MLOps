@@ -1,12 +1,13 @@
 import json
 from collections import defaultdict
 from copy import deepcopy
+
 import numpy as np
 import torch
 import torch.nn as nn
 from loguru import logger
 from torch.distributed import get_rank, get_world_size
-from torch.utils.data import IterableDataset
+from torch.utils.data import IterableDataset, get_worker_info
 from tqdm.auto import tqdm
 
 
@@ -78,9 +79,7 @@ class SkipGramDataset(IterableDataset):
         self.num_sequences = len(self.sequences)
 
         # Determine vocabulary size
-        self.vocab_size = (
-            len(self.item_freq) if id_to_idx is None else len(id_to_idx)
-        )
+        self.vocab_size = len(self.item_freq) if id_to_idx is None else len(id_to_idx)
 
         # Prepare item frequency array for negative sampling
         items, frequencies = zip(*self.item_freq.items())
@@ -231,7 +230,9 @@ class SkipGramDataset(IterableDataset):
         return nn.BCELoss()
 
     @classmethod
-    def forward(cls, model, batch_input: dict, loss_fn: nn.Module = None, device: str = "cpu") -> torch.Tensor:
+    def forward(
+        cls, model, batch_input: dict, loss_fn: nn.Module = None, device: str = "cpu"
+    ) -> torch.Tensor:
         """Perform a forward pass and compute the loss for a batch.
 
         Args:

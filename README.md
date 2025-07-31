@@ -5,7 +5,7 @@ A **production-ready, end-to-end Recommender System pipeline** for scalable, clo
 ## 🏗️ Architecture
 
 ### Overall System Flow
-![Luồng tổng quan hệ thống](images/architect/overall.gif)
+![Luồng tổng quan hệ thống](images/architect/overall.png)
 
 ### Serving Pipeline
 ![Luồng serving](images/architect/serving.gif)
@@ -359,6 +359,10 @@ kubectl apply -f deployment.yaml
 kubectl apply -f service.yaml
 kubectl port-forward svc/feature-store-api-service 8005:80 -n api-feature-store
 ```
+### Feature view
+![Feature view](images/feature_view/feature_view.png)
+
+
 
 ---
 ## 🧩 Kubeflow Pipeline Training
@@ -647,6 +651,7 @@ kubectl port-forward svc/api-gateway-service 8009:80 -n api-gateway
 
 1. **Install LGTM Stack Locally**:
    ```bash
+   git clone https://github.com/daviaraujocc/lgtm-stack.git
    cd lgtm-stack
    make install-local # testing
    ```

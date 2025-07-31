@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+
 import boto3
 import dotenv
 from airflow import DAG
@@ -10,14 +11,24 @@ from sqlalchemy import create_engine
 
 def get_engine():
     """
-    Creates and returns a SQLAlchemy engine for connecting to the PostgreSQL database.
+    Creates and returns a SQLAlchemy engine for connecting to the PostgreSQL database using Airflow Variables.
 
     Returns:
         sqlalchemy.engine.Engine: A SQLAlchemy engine instance connected to the raw_data database.
     """
-    return create_engine(
-        "postgresql://postgres:postgres@simulate-oltp-db.cdkwg6wyo7r8.ap-southeast-1.rds.amazonaws.com:5432/raw_data"
+    db_user = Variable.get("db_user", default_var="postgres")
+    db_password = Variable.get("db_password", default_var="postgres")
+    db_host = Variable.get(
+        "db_host",
+        default_var="simulate-oltp-db.cdkwg6wyo7r8.ap-southeast-1.rds.amazonaws.com",
     )
+    db_port = Variable.get("db_port", default_var="5432")
+    db_name = Variable.get("db_name", default_var="raw_data")
+
+    connection_string = (
+        f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+    )
+    return create_engine(connection_string)
 
 
 def reset_and_pull():

@@ -1,8 +1,8 @@
 pandas==2.1.4
-numpy
+numpy==1.26.4
 psycopg2-binary==2.9.10
-pyarrow
-fastparquet
-boto3
-dotenv
+pyarrow==17.0.0
+fastparquet==2024.11.0
+boto3==1.35.37
+dotenv==0.9.9
 sqlalchemy==1.4.54

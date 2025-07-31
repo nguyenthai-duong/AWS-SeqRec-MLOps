@@ -15,10 +15,14 @@ try:
     import onnx
     from onnx import checker
 except ImportError:
-    raise ImportError("Please install the 'onnx' package to run this script: pip install onnx")
+    raise ImportError(
+        "Please install the 'onnx' package to run this script: pip install onnx"
+    )
 
 # Logging setup
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 # MinIO and MLflow setup
@@ -110,7 +114,9 @@ class TritonModelWrapper(torch.nn.Module):
         super().__init__()
         self.model = model
 
-    def forward(self, user_ids, input_seq, input_seq_ts_bucket, item_features, target_item):
+    def forward(
+        self, user_ids, input_seq, input_seq_ts_bucket, item_features, target_item
+    ):
         """Forward pass for the wrapped model.
 
         Args:
@@ -125,7 +131,9 @@ class TritonModelWrapper(torch.nn.Module):
         """
         user_ids = user_ids.squeeze(1)
         target_item = target_item.squeeze(1)
-        return self.model(user_ids, input_seq, input_seq_ts_bucket, item_features, target_item)
+        return self.model(
+            user_ids, input_seq, input_seq_ts_bucket, item_features, target_item
+        )
 
 
 def find_champion_version(model_name: str) -> str:
@@ -185,7 +193,9 @@ def validate_pipeline_feature_size(pipeline, expected_size: int = 416) -> int:
     feature_size = features.shape[1]
     logger.info("Item metadata pipeline feature size: %d", feature_size)
     if feature_size != expected_size:
-        logger.warning("Feature size mismatch: expected %d, got %d", expected_size, feature_size)
+        logger.warning(
+            "Feature size mismatch: expected %d, got %d", expected_size, feature_size
+        )
     return feature_size
 
 
@@ -229,7 +239,9 @@ def load_model_and_artifacts(model_name: str):
 
     # Download and copy IDMapper
     try:
-        idm_path = mlflow.artifacts.download_artifacts(run_id=run_id, artifact_path="id_mapper/id_mapper.pkl")
+        idm_path = mlflow.artifacts.download_artifacts(
+            run_id=run_id, artifact_path="id_mapper/id_mapper.pkl"
+        )
         if not os.path.isfile(idm_path):
             raise FileNotFoundError(f"IDMapper not found at {idm_path}")
         shutil.copy2(idm_path, os.path.join(id_mapper_dir, "id_mapper.pkl"))
@@ -249,11 +261,16 @@ def load_model_and_artifacts(model_name: str):
     # Download and copy item_metadata_pipeline
     try:
         pipeline_path = mlflow.artifacts.download_artifacts(
-            run_id=run_id, artifact_path="item_metadata_pipeline/item_metadata_pipeline.pkl"
+            run_id=run_id,
+            artifact_path="item_metadata_pipeline/item_metadata_pipeline.pkl",
         )
         if not os.path.isfile(pipeline_path):
-            raise FileNotFoundError(f"Item metadata pipeline not found at {pipeline_path}")
-        shutil.copy2(pipeline_path, os.path.join(item_pipeline_dir, "item_metadata_pipeline.pkl"))
+            raise FileNotFoundError(
+                f"Item metadata pipeline not found at {pipeline_path}"
+            )
+        shutil.copy2(
+            pipeline_path, os.path.join(item_pipeline_dir, "item_metadata_pipeline.pkl")
+        )
         with open(pipeline_path, "rb") as f:
             item_pipeline = dill.load(f)
         if item_pipeline is None:
@@ -304,7 +321,9 @@ def export_to_onnx(model: torch.nn.Module, seq_len: int, feature_size: int) -> s
     dummy_inputs = (
         torch.randint(0, 10, (1, 1), dtype=torch.int64),  # user_ids
         torch.randint(0, 10, (1, seq_len), dtype=torch.int64),  # input_seq
-        torch.randint(0, seq_len + 1, (1, seq_len), dtype=torch.int64),  # input_seq_ts_bucket
+        torch.randint(
+            0, seq_len + 1, (1, seq_len), dtype=torch.int64
+        ),  # input_seq_ts_bucket
         torch.randn(1, feature_size, dtype=torch.float32),  # item_features
         torch.randint(0, 10, (1, 1), dtype=torch.int64),  # target_item
     )
@@ -318,7 +337,13 @@ def export_to_onnx(model: torch.nn.Module, seq_len: int, feature_size: int) -> s
             export_params=True,
             opset_version=ONNX_OPSET,
             do_constant_folding=True,
-            input_names=["user_ids", "input_seq", "input_seq_ts_bucket", "item_features", "target_item"],
+            input_names=[
+                "user_ids",
+                "input_seq",
+                "input_seq_ts_bucket",
+                "item_features",
+                "target_item",
+            ],
             output_names=["output"],
             dynamic_axes=DYNAMIC_AXES,
             verbose=False,
@@ -362,7 +387,9 @@ def prepare_triton_repo(onnx_path: str, model_name: str, repo_path: str):
 
     # Verify pickle files
     id_mapper_pkl_path = os.path.join(id_mapper_dir, "1", "id_mapper.pkl")
-    item_pipeline_pkl_path = os.path.join(item_pipeline_dir, "1", "item_metadata_pipeline.pkl")
+    item_pipeline_pkl_path = os.path.join(
+        item_pipeline_dir, "1", "item_metadata_pipeline.pkl"
+    )
     for pkl_path in [id_mapper_pkl_path, item_pipeline_pkl_path]:
         if not os.path.isfile(pkl_path):
             logger.error("Pickle file not found: %s", pkl_path)
@@ -403,7 +430,7 @@ logger = logging.getLogger(__name__)
 
 class TritonPythonModel:
     \"\"\"Triton Python model for ID mapping.\"\"\"
-    
+
     def __init__(self):
         self.idm = None
         self.sequence_length = 10  # Match SEQ_LEN from script
@@ -553,7 +580,7 @@ logger = logging.getLogger(__name__)
 
 class TritonPythonModel:
     \"\"\"Triton Python model for item metadata pipeline processing.\"\"\"
-    
+
     def __init__(self):
         self.pipeline = None
 
@@ -739,7 +766,9 @@ ensemble_scheduling {{
     logger.info("Ensemble config created at %s", ensemble_config_path)
 
     # Copy id_mapper.py to id_mapper/1/
-    IDM_SOURCE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "id_mapper.py"))
+    IDM_SOURCE = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "id_mapper.py")
+    )
     IDM_DEST = os.path.join(repo_path, "id_mapper", "1", "id_mapper.py")
     shutil.copy2(IDM_SOURCE, IDM_DEST)
     logger.info("Copied id_mapper.py to %s", IDM_DEST)
