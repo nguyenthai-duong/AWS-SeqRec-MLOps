@@ -14,7 +14,7 @@ A **production-ready, end-to-end Recommender System pipeline** for scalable, clo
 ![Luồng caching offline](images/architect/caching_offline.png)
 
 ### Ranking Sequence Model Architecture
-![Kiến trúc ranking sequence model](images/architect/model.gif)
+![Kiến trúc ranking sequence model](images/architect/model.png)
 
 ---
 
