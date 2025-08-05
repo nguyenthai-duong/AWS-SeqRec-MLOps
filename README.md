@@ -1,4 +1,4 @@
-# Ecommerce-Recommender-System-On-Aws-With-Mlops
+# Ecommerce-Recommender-System-On-AWS-With-MLOps
 
 A **production-ready, end-to-end Recommender System pipeline** for scalable, cloud-native machine learning workflows. This project provides a robust MLOps architecture for building, training, deploying, and serving recommendation models in both research and production environments.
 
